@@ -1,4 +1,4 @@
-# @kinde/kinde-auth-pkce-js
+# @kinde-oss/kinde-auth-pkce-js
 
 The Kinde PKCE authentication SDK.
 
