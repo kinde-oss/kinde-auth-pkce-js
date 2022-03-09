@@ -1,5 +1,5 @@
 {
-  "name": "@kinde/kinde-auth-pkce-js",
+  "name": "@kinde-oss/kinde-auth-pkce-js",
   "version": "0.0.1",
   "description": "Kinde PKCE authentication for SPAs",
   "module": "dist/kinde-auth-pkce-js.esm.min.js",
