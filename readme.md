@@ -7,13 +7,13 @@ The Kinde PKCE authentication SDK.
 Run the following command using npm:
 
 ```
-npm install @kinde/kinde-auth-pkce-js
+npm install @kinde-oss/kinde-auth-pkce-js
 ```
 
 If you prefer Yarn, use this command instead:
 
 ```
-yarn add @kinde/kinde-auth-pkce-js
+yarn add @kinde-oss/kinde-auth-pkce-js
 ```
 
 ## How to use
