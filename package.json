@@ -8,7 +8,8 @@
   "scripts": {
     "build": "rollup -c",
     "test": "jest",
-    "watch": "rollup -c -w"
+    "watch": "rollup -c -w",
+    "prepare": "husky install"
   },
   "author": {
     "name": "Kinde",
@@ -27,7 +28,9 @@
     "@babel/preset-env": "^7.16.11",
     "eslint": "^8.8.0",
     "eslint-config-prettier": "^8.3.0",
+    "husky": "^7.0.0",
     "jest": "^27.5.1",
+    "lint-staged": "^12.3.5",
     "prettier": "^2.5.1",
     "rollup": "^2.67.0"
   },
@@ -42,5 +45,11 @@
   "files": [
     "dist"
   ],
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx}": [
+      "npx prettier --write .",
+      "npx eslint --fix"
+    ]
+  },
   "private": false
 }
