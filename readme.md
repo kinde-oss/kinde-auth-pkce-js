@@ -1,6 +1,13 @@
+[![Travis][build-badge]][build] [![npm package][npm-badge]][npm]
+
 # @kinde-oss/kinde-auth-pkce-js
 
 The Kinde PKCE authentication SDK.
+
+[build-badge]: https://api.travis-ci.com/kinde-oss/kinde-auth-pkce-js.svg?branch=main
+[build]: https://travis-ci.com/DaveOrDead/@kinde-oss/kinde-auth-pkce-js
+[npm-badge]: https://raster.shields.io/npm/v/@kinde-oss/kinde-auth-pkce-js.png
+[npm]: https://www.npmjs.com/package/@kinde-oss/kinde-auth-pkce-js
 
 ## Install
 
