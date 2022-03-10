@@ -1,4 +1,4 @@
-[![Travis][build-badge]][build] [![npm package][npm-badge]][npm]
+[![npm package][npm-badge]][npm]
 
 # @kinde-oss/kinde-auth-pkce-js
 
