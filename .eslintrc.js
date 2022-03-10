@@ -5,12 +5,14 @@ module.exports = {
   },
   globals: {
     window: true,
-    module: true
+    module: true,
+    jest: true
   },
-  extends: ['eslint:recommended', 'prettier'],
+  extends: ['plugin:jest/recommended', 'eslint:recommended', 'prettier'],
   parserOptions: {
     ecmaVersion: 13,
     sourceType: 'module'
   },
+  plugins: ['jest'],
   rules: {}
 };
