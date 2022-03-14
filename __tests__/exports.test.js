@@ -8,10 +8,8 @@ import crypto from 'crypto';
 global.TextEncoder = TextEncoder;
 // eslint-disable-next-line no-undef
 global.TextDecoder = TextDecoder;
-
 // eslint-disable-next-line no-undef
 global.localStorage = new LocalStorageMock();
-
 // eslint-disable-next-line no-undef
 Object.defineProperty(global.self, 'crypto', {
   value: {
@@ -107,18 +105,5 @@ describe('createKindeClient return the correct object', () => {
       'logout',
       'register'
     ]);
-  });
-});
-
-describe('createKindeClient -> login', () => {
-  it('should work', async () => {
-    // const kindeClient = await createKindeClient({
-    //   domain: 'https://sdk.kinde.localtest.me',
-    //   redirect_uri: 'https://pixie.localtest.me'
-    // });
-    // await kindeClient.login();
-    expect(1 + 1).toBe(2);
-    // window.url = 'help';
-    // console.log(window.location.pathname);
   });
 });

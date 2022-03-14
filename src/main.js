@@ -102,8 +102,8 @@ const createKindeClient = async (options) => {
     handleKindeRedirect('registration');
   };
 
-  const login = () => {
-    handleKindeRedirect('login');
+  const login = async () => {
+    await handleKindeRedirect('login');
   };
 
   const handleRedirectCallback = async () => {
