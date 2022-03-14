@@ -98,8 +98,8 @@ const createKindeClient = async (options) => {
     window.location = url;
   };
 
-  const register = () => {
-    handleKindeRedirect('registration');
+  const register = async () => {
+    await handleKindeRedirect('registration');
   };
 
   const login = async () => {

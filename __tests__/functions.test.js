@@ -20,6 +20,10 @@ Object.defineProperty(window, 'sessionStorage', {
   value: new LocalStorageMock()
 });
 
+const stringContainsAll = (str, subStrArr) => {
+  return !subStrArr.some((subStr) => !str.includes(subStr));
+};
+
 let kindeClient = null;
 let redirect_uri = 'https://pixie.localtest.me';
 
@@ -37,41 +41,19 @@ describe('createKindeClient -> login', () => {
   it('should redirect to the correct url', async () => {
     await kindeClient.login();
 
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('https://sdk.kinde.localtest.me/oauth2/auth?')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('start_page=login')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('redirect_uri=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('client_id=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('response_type=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('scope=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('code_challenge=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('code_challenge_method=')
-    );
-
-    expect(window.location.href).toStrictEqual(
-      expect.stringContaining('state=')
-    );
+    expect(
+      stringContainsAll(window.location.href, [
+        'https://sdk.kinde.localtest.me/oauth2/auth?',
+        'start_page=login',
+        'redirect_uri=',
+        'client_id=',
+        'response_type=',
+        'scope=',
+        'code_challenge=',
+        'code_challenge_method=',
+        'state='
+      ])
+    ).toBe(true);
   });
 });
 
@@ -81,3 +63,26 @@ describe('createKindeClient -> logout', () => {
     expect(window.location).toBe(redirect_uri);
   });
 });
+
+describe('createKindeClient -> register', () => {
+  it('should redirect to the correct url', async () => {
+    await kindeClient.register();
+    expect(
+      stringContainsAll(window.location.href, [
+        'https://sdk.kinde.localtest.me/oauth2/auth?',
+        'start_page=registration',
+        'redirect_uri=',
+        'client_id=',
+        'response_type=',
+        'scope=',
+        'code_challenge=',
+        'code_challenge_method=',
+        'state='
+      ])
+    ).toBe(true);
+  });
+});
+
+describe('createKindeClient -> getToken', () => {});
+describe('createKindeClient -> getUser', () => {});
+describe('createKindeClient -> handleRedirectCallback', () => {});
