@@ -1,8 +1,24 @@
 import createKindeClient from '../src/main.js';
 import {LocalStorageMock} from '../mocks/mock-local-storage';
 
+import {TextEncoder, TextDecoder} from 'util';
+import crypto from 'crypto';
+
+// eslint-disable-next-line no-undef
+global.TextEncoder = TextEncoder;
+// eslint-disable-next-line no-undef
+global.TextDecoder = TextDecoder;
+
 // eslint-disable-next-line no-undef
 global.localStorage = new LocalStorageMock();
+
+// eslint-disable-next-line no-undef
+Object.defineProperty(global.self, 'crypto', {
+  value: {
+    subtle: crypto.webcrypto.subtle,
+    getRandomValues: crypto.webcrypto.getRandomValues
+  }
+});
 
 describe('Exports the correct function', () => {
   it('should export default', () => {
@@ -91,5 +107,18 @@ describe('createKindeClient return the correct object', () => {
       'logout',
       'register'
     ]);
+  });
+});
+
+describe('createKindeClient -> login', () => {
+  it('should work', async () => {
+    // const kindeClient = await createKindeClient({
+    //   domain: 'https://sdk.kinde.localtest.me',
+    //   redirect_uri: 'https://pixie.localtest.me'
+    // });
+    // await kindeClient.login();
+    expect(1 + 1).toBe(2);
+    // window.url = 'help';
+    // console.log(window.location.pathname);
   });
 });
