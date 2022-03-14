@@ -53,5 +53,8 @@
       "npx eslint --fix"
     ]
   },
-  "private": false
+  "private": false,
+  "jest": {
+    "testEnvironment": "jsdom"
+  }
 }

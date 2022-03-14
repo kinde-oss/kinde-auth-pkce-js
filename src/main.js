@@ -1,7 +1,33 @@
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
-const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
+const createKindeClient = async (options) => {
+  if (!options) {
+    throw Error('Please provide your Kinde credentials');
+  }
+
+  if (options !== Object(options)) {
+    throw Error('The Kinde SDK must be initiated with an object');
+  }
+
+  const {redirect_uri, domain, is_live = true} = options;
+
+  if (!redirect_uri || typeof options.redirect_uri !== 'string') {
+    throw Error(
+      'Please supply a valid redirect_uri for your users to be redirected after successful authentication'
+    );
+  }
+
+  if (!domain || typeof domain !== 'string') {
+    throw Error(
+      'Please supply a valid Kinde domain so we can connect to your account'
+    );
+  }
+
+  if (typeof is_live !== 'boolean') {
+    throw TypeError('Please supply a boolean value for is_live');
+  }
+
   const client_id = is_live ? 'spa@live' : 'spa@sandbox';
 
   const config = {
@@ -13,7 +39,7 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
     domain
   };
 
-  const setupChallenge = async () => {
+  const setupTheThings = async () => {
     const state = randomString();
     const code_verifier = randomString(); // the secret
     // Hash and base64-urlencode the secret to use as the challenge
@@ -56,7 +82,7 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
   await getToken();
 
   const handleKindeRedirect = async (type) => {
-    const {state, code_challenge, url} = await setupChallenge();
+    const {state, code_challenge, url} = await setupTheThings();
 
     url.search = new URLSearchParams({
       redirect_uri,
@@ -121,6 +147,7 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
         // Remove auth code from address bar
         const url = new URL(window.location);
         url.search = '';
+        // window.history.pushState('', document.title, url);
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
         return {
           kindeState: data
@@ -134,8 +161,19 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
 
   const logout = async () => {
     try {
+      //   const storedToken = localStorage.getItem('kinde_token');
+      //   const token = JSON.parse(storedToken);
+      //   const response = await fetch(`${domain}/auth/logout`, {
+      //     headers: { Authorization: "Bearer " + token.access_token },
+      //     body: new URLSearchParams({
+      //       client_id: config.client_id,
+      //     }),
+      //   });
+      //   const data = await response.json();
+      //   console.log(data);
       localStorage.removeItem('kinde_token');
       window.location = config.redirect_uri;
+      //   return data;
     } catch (err) {
       console.log(err);
     }
