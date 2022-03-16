@@ -9,11 +9,17 @@ global.TextEncoder = TextEncoder;
 // eslint-disable-next-line no-undef
 global.TextDecoder = TextDecoder;
 // eslint-disable-next-line no-undef
+global.localStorage = new LocalStorageMock();
+// eslint-disable-next-line no-undef
 Object.defineProperty(global.self, 'crypto', {
   value: {
     subtle: crypto.webcrypto.subtle,
     getRandomValues: crypto.webcrypto.getRandomValues
   }
+});
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: new LocalStorageMock()
 });
 
 Object.defineProperty(window, 'sessionStorage', {
@@ -83,6 +89,51 @@ describe('createKindeClient -> register', () => {
   });
 });
 
-describe('createKindeClient -> getToken', () => {});
-describe('createKindeClient -> getUser', () => {});
+// describe('createKindeClient -> getToken', () => {
+//   it('should work', async () => {
+//     const res = {
+//       access_token: 'sup'
+//     };
+
+//     localStorage.setItem(
+//       'kinde_token',
+//       JSON.stringify({refresh_token: 'hello'})
+//     );
+
+//     // eslint-disable-next-line no-undef
+//     global.fetch = jest.fn(() => {
+//       Promise.resolve({
+//         json: () => Promise.resolve(res)
+//       });
+//     });
+
+//     expect(await kindeClient.getToken()).toBe('sup');
+//   });
+// });
+describe('createKindeClient -> getUser', () => {
+  it('should work', async () => {
+    const res = {
+      id: 'kp:af23c91f1ab9441b96f7d358580a366c',
+      last_name: null,
+      first_name: 'EssDee Kay',
+      preferred_email: 'peterphanouvong0+sdk@gmail.com'
+    };
+
+    // eslint-disable-next-line no-undef
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        json: () => Promise.resolve(res)
+      })
+    );
+
+    localStorage.setItem(
+      'kinde_token',
+      JSON.stringify({
+        access_token: 'jello'
+      })
+    );
+
+    expect(await kindeClient.getUser()).toBe(res);
+  });
+});
 describe('createKindeClient -> handleRedirectCallback', () => {});
