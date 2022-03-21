@@ -39,7 +39,7 @@ const createKindeClient = async (options) => {
     domain
   };
 
-  const setupTheThings = async () => {
+  const setupChallenge = async () => {
     const state = randomString();
     const code_verifier = randomString(); // the secret
     // Hash and base64-urlencode the secret to use as the challenge
@@ -82,7 +82,7 @@ const createKindeClient = async (options) => {
   await getToken();
 
   const handleKindeRedirect = async (type) => {
-    const {state, code_challenge, url} = await setupTheThings();
+    const {state, code_challenge, url} = await setupChallenge();
 
     url.search = new URLSearchParams({
       redirect_uri,
@@ -161,19 +161,8 @@ const createKindeClient = async (options) => {
 
   const logout = async () => {
     try {
-      //   const storedToken = localStorage.getItem('kinde_token');
-      //   const token = JSON.parse(storedToken);
-      //   const response = await fetch(`${domain}/auth/logout`, {
-      //     headers: { Authorization: "Bearer " + token.access_token },
-      //     body: new URLSearchParams({
-      //       client_id: config.client_id,
-      //     }),
-      //   });
-      //   const data = await response.json();
-      //   console.log(data);
       localStorage.removeItem('kinde_token');
       window.location = config.redirect_uri;
-      //   return data;
     } catch (err) {
       console.log(err);
     }

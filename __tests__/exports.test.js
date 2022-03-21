@@ -1,5 +1,5 @@
 import createKindeClient from '../src/main.js';
-import {LocalStorageMock} from '../mocks/mock-local-storage';
+import {LocalStorageMock} from '../src/mocks/mock-local-storage.js';
 
 import {TextEncoder, TextDecoder} from 'util';
 import crypto from 'crypto';
