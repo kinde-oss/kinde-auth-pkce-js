@@ -33,6 +33,7 @@
     "husky": "^7.0.0",
     "jest": "^27.5.1",
     "lint-staged": "^12.3.5",
+    "msw": "^0.39.2",
     "prettier": "^2.5.1",
     "rollup": "^2.67.0",
     "rollup-plugin-terser": "^7.0.2"
@@ -55,7 +56,7 @@
     ]
   },
   "private": false,
-  "jest": {
-    "testEnvironment": "jsdom"
+  "dependencies": {
+    "whatwg-fetch": "^3.6.2"
   }
 }

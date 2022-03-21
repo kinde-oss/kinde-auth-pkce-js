@@ -89,27 +89,16 @@ describe('createKindeClient -> register', () => {
   });
 });
 
-// describe('createKindeClient -> getToken', () => {
-//   it('should work', async () => {
-//     const res = {
-//       access_token: 'sup'
-//     };
+describe('createKindeClient -> getToken', () => {
+  it('should work', async () => {
+    localStorage.setItem(
+      'kinde_token',
+      JSON.stringify({refresh_token: 'hello'})
+    );
 
-//     localStorage.setItem(
-//       'kinde_token',
-//       JSON.stringify({refresh_token: 'hello'})
-//     );
-
-//     // eslint-disable-next-line no-undef
-//     global.fetch = jest.fn(() => {
-//       Promise.resolve({
-//         json: () => Promise.resolve(res)
-//       });
-//     });
-
-//     expect(await kindeClient.getToken()).toBe('sup');
-//   });
-// });
+    expect(await kindeClient.getToken()).toBe('testToken');
+  });
+});
 describe('createKindeClient -> getUser', () => {
   it('should work', async () => {
     const res = {
@@ -119,13 +108,6 @@ describe('createKindeClient -> getUser', () => {
       preferred_email: 'peterphanouvong0+sdk@gmail.com'
     };
 
-    // eslint-disable-next-line no-undef
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        json: () => Promise.resolve(res)
-      })
-    );
-
     localStorage.setItem(
       'kinde_token',
       JSON.stringify({
@@ -133,7 +115,9 @@ describe('createKindeClient -> getUser', () => {
       })
     );
 
-    expect(await kindeClient.getUser()).toBe(res);
+    await kindeClient.getUser();
+
+    expect(await kindeClient.getUser()).toStrictEqual(res);
   });
 });
 describe('createKindeClient -> handleRedirectCallback', () => {});
