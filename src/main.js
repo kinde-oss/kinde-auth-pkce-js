@@ -1,7 +1,33 @@
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
-const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
+const createKindeClient = async (options) => {
+  if (!options) {
+    throw Error('Please provide your Kinde credentials');
+  }
+
+  if (options !== Object(options)) {
+    throw Error('The Kinde SDK must be initiated with an object');
+  }
+
+  const {redirect_uri, domain, is_live = true} = options;
+
+  if (!redirect_uri || typeof options.redirect_uri !== 'string') {
+    throw Error(
+      'Please supply a valid redirect_uri for your users to be redirected after successful authentication'
+    );
+  }
+
+  if (!domain || typeof domain !== 'string') {
+    throw Error(
+      'Please supply a valid Kinde domain so we can connect to your account'
+    );
+  }
+
+  if (typeof is_live !== 'boolean') {
+    throw TypeError('Please supply a boolean value for is_live');
+  }
+
   const client_id = is_live ? 'spa@live' : 'spa@sandbox';
 
   const config = {
@@ -72,12 +98,12 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
     window.location = url;
   };
 
-  const register = () => {
-    handleKindeRedirect('registration');
+  const register = async () => {
+    await handleKindeRedirect('registration');
   };
 
-  const login = () => {
-    handleKindeRedirect('login');
+  const login = async () => {
+    await handleKindeRedirect('login');
   };
 
   const handleRedirectCallback = async () => {
@@ -121,6 +147,7 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
         // Remove auth code from address bar
         const url = new URL(window.location);
         url.search = '';
+        // window.history.pushState('', document.title, url);
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
         return {
           kindeState: data
