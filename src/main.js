@@ -1,7 +1,38 @@
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
-const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
+const createKindeClient = async (options) => {
+  if (!options) {
+    throw Error('Please provide your Kinde credentials');
+  }
+
+  if (options !== Object(options)) {
+    throw Error('The Kinde SDK must be initiated with an object');
+  }
+
+  const {
+    redirect_uri,
+    domain,
+    is_live = true,
+    logout_uri = redirect_uri
+  } = options;
+
+  if (!redirect_uri || typeof options.redirect_uri !== 'string') {
+    throw Error(
+      'Please supply a valid redirect_uri for your users to be redirected after successful authentication'
+    );
+  }
+
+  if (!domain || typeof domain !== 'string') {
+    throw Error(
+      'Please supply a valid Kinde domain so we can connect to your account'
+    );
+  }
+
+  if (typeof is_live !== 'boolean') {
+    throw TypeError('Please supply a boolean value for is_live');
+  }
+
   const client_id = is_live ? 'spa@live' : 'spa@sandbox';
 
   const config = {
@@ -72,12 +103,12 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
     window.location = url;
   };
 
-  const register = () => {
-    handleKindeRedirect('registration');
+  const register = async () => {
+    await handleKindeRedirect('registration');
   };
 
-  const login = () => {
-    handleKindeRedirect('login');
+  const login = async () => {
+    await handleKindeRedirect('login');
   };
 
   const handleRedirectCallback = async () => {
@@ -133,9 +164,15 @@ const createKindeClient = async ({redirect_uri, domain, is_live = true}) => {
   };
 
   const logout = async () => {
+    const url = new URL(`${config.domain}/enduser-logout`);
+
     try {
       localStorage.removeItem('kinde_token');
-      window.location = config.redirect_uri;
+      url.search = new URLSearchParams({
+        redirect: logout_uri
+      });
+
+      window.location = url;
     } catch (err) {
       console.log(err);
     }
