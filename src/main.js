@@ -164,7 +164,7 @@ const createKindeClient = async (options) => {
   };
 
   const logout = async () => {
-    const url = new URL(`${config.domain}/enduser-logout`);
+    const url = new URL(`${config.domain}/logout`);
 
     try {
       localStorage.removeItem('kinde_token');
