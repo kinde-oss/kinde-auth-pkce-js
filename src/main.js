@@ -14,8 +14,7 @@ const createKindeClient = async (options) => {
     redirect_uri,
     domain,
     is_live = true,
-    logout_uri = redirect_uri,
-    org_id = -1
+    logout_uri = redirect_uri
   } = options;
 
   if (!redirect_uri || typeof options.redirect_uri !== 'string') {
@@ -42,8 +41,7 @@ const createKindeClient = async (options) => {
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
     requested_scopes: 'openid offline',
-    domain,
-    org_id
+    domain
   };
 
   const setupChallenge = async () => {
@@ -88,7 +86,7 @@ const createKindeClient = async (options) => {
 
   await getToken();
 
-  const handleKindeRedirect = async (type) => {
+  const handleKindeRedirect = async (options) => {
     const {state, code_challenge, url} = await setupChallenge();
 
     url.search = new URLSearchParams({
@@ -99,19 +97,26 @@ const createKindeClient = async (options) => {
       code_challenge,
       code_challenge_method: 'S256',
       state,
-      start_page: type,
-      org_id
+      start_page: options.type,
+      org_id: options.org_id
     });
 
     window.location = url;
   };
 
-  const register = async () => {
-    await handleKindeRedirect('registration');
+  const register = async (options) => {
+    await handleKindeRedirect({
+      type: 'register',
+      ...options
+    });
   };
 
-  const login = async () => {
-    await handleKindeRedirect('login');
+  const login = async (options) => {
+    await handleKindeRedirect({
+      type: 'login',
+      ...options
+    });
+    console.log('options', options);
   };
 
   const handleRedirectCallback = async () => {
