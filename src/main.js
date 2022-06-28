@@ -14,7 +14,8 @@ const createKindeClient = async (options) => {
     redirect_uri,
     domain,
     is_live = true,
-    logout_uri = redirect_uri
+    logout_uri = redirect_uri,
+    org_id = -1
   } = options;
 
   if (!redirect_uri || typeof options.redirect_uri !== 'string') {
@@ -41,7 +42,8 @@ const createKindeClient = async (options) => {
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
     requested_scopes: 'openid offline',
-    domain
+    domain,
+    org_id
   };
 
   const setupChallenge = async () => {
@@ -97,7 +99,8 @@ const createKindeClient = async (options) => {
       code_challenge,
       code_challenge_method: 'S256',
       state,
-      start_page: type
+      start_page: type,
+      org_id
     });
 
     window.location = url;
