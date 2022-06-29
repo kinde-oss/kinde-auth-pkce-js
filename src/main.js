@@ -87,9 +87,11 @@ const createKindeClient = async (options) => {
   await getToken();
 
   const handleKindeRedirect = async (options) => {
+    const {start_page, is_create_org, org_id, org_name = ''} = options;
+
     const {state, code_challenge, url} = await setupChallenge();
 
-    url.search = new URLSearchParams({
+    let searchParams = {
       redirect_uri,
       client_id,
       response_type: 'code',
@@ -97,26 +99,43 @@ const createKindeClient = async (options) => {
       code_challenge,
       code_challenge_method: 'S256',
       state,
-      start_page: options.type,
-      org_id: options.org_id
-    });
+      start_page
+    };
+
+    if (is_create_org) {
+      searchParams.is_create_org = is_create_org;
+      searchParams.org_name = org_name;
+    }
+
+    if (org_id) {
+      searchParams.org_id = org_id;
+    }
+
+    url.search = new URLSearchParams(searchParams);
 
     window.location = url;
   };
 
   const register = async (options) => {
     await handleKindeRedirect({
-      type: 'register',
-      ...options
+      ...options,
+      start_page: 'registration'
     });
   };
 
   const login = async (options) => {
     await handleKindeRedirect({
-      type: 'login',
-      ...options
+      ...options,
+      start_page: 'login'
     });
-    console.log('options', options);
+  };
+
+  const createOrg = async (options) => {
+    await handleKindeRedirect({
+      ...options,
+      start_page: 'registration',
+      is_create_org: true
+    });
   };
 
   const handleRedirectCallback = async () => {
@@ -210,7 +229,8 @@ const createKindeClient = async (options) => {
     handleRedirectCallback,
     login,
     logout,
-    register
+    register,
+    createOrg
   };
 };
 
