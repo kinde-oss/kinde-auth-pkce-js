@@ -87,7 +87,13 @@ const createKindeClient = async (options) => {
   await getToken();
 
   const handleKindeRedirect = async (options) => {
-    const {start_page, is_create_org, org_id, org_name = ''} = options;
+    const {
+      start_page,
+      is_create_org,
+      org_id,
+      org_name = '',
+      org_code
+    } = options;
 
     const {state, code_challenge, url} = await setupChallenge();
 
@@ -101,6 +107,10 @@ const createKindeClient = async (options) => {
       state,
       start_page
     };
+
+    if (org_code) {
+      searchParams.org_code = org_code;
+    }
 
     if (is_create_org) {
       searchParams.is_create_org = is_create_org;
@@ -132,8 +142,8 @@ const createKindeClient = async (options) => {
 
   const createOrg = async (options) => {
     await handleKindeRedirect({
-      ...options,
       start_page: 'registration',
+      ...options,
       is_create_org: true
     });
   };
