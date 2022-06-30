@@ -132,8 +132,8 @@ const createKindeClient = async (options) => {
 
   const createOrg = async (options) => {
     await handleKindeRedirect({
-      ...options,
       start_page: 'registration',
+      ...options,
       is_create_org: true
     });
   };
