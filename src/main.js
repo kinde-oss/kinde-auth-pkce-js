@@ -87,13 +87,7 @@ const createKindeClient = async (options) => {
   await getToken();
 
   const handleKindeRedirect = async (options) => {
-    const {
-      start_page,
-      is_create_org,
-      org_id,
-      org_name = '',
-      org_code
-    } = options;
+    const {start_page, is_create_org, org_name = '', org_code} = options;
 
     const {state, code_challenge, url} = await setupChallenge();
 
@@ -115,10 +109,6 @@ const createKindeClient = async (options) => {
     if (is_create_org) {
       searchParams.is_create_org = is_create_org;
       searchParams.org_name = org_name;
-    }
-
-    if (org_id) {
-      searchParams.org_id = org_id;
     }
 
     url.search = new URLSearchParams(searchParams);
