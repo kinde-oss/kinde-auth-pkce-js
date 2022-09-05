@@ -9,7 +9,7 @@
   "exports": {
         "import": "dist/kinde-auth-pkce-js.esm.min.js",
         "require": "dist/kinde-auth-pkce-js.umd.min.js"
-    }
+    },
   "scripts": {
     "build": "rollup -c",
     "test": "jest",
