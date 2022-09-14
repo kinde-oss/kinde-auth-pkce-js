@@ -11,6 +11,7 @@ const createKindeClient = async (options) => {
   }
 
   const {
+    client_id: clientId,
     redirect_uri,
     domain,
     is_live = true,
@@ -33,7 +34,7 @@ const createKindeClient = async (options) => {
     throw TypeError('Please supply a boolean value for is_live');
   }
 
-  const client_id = is_live ? 'spa@live' : 'spa@sandbox';
+  const client_id = clientId || 'spa@live';
 
   const config = {
     client_id,
