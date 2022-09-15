@@ -126,7 +126,7 @@ const createKindeClient = async (options) => {
     const isTokenValid = accessToken.exp > unixTime;
 
     if (token && isTokenValid) {
-      return token;
+      return token.access_token;
     } else {
       return await useRefreshToken();
     }
