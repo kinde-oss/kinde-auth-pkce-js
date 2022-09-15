@@ -10,8 +10,13 @@ const createStore = () => {
     items[key] = value;
   };
 
+  const removeItem = (key) => {
+    delete items[key];
+  };
+
   return {
     getItem,
+    removeItem,
     setItem
   };
 };
@@ -247,6 +252,7 @@ const createKindeClient = async (options) => {
 
     try {
       store.removeItem('kinde_token');
+      localStorage.removeItem('kinde_rt');
       url.search = new URLSearchParams({
         redirect: logout_uri
       });
