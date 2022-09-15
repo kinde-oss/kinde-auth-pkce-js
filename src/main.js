@@ -1,7 +1,31 @@
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
+const createStore = () => {
+  let items = {};
+
+  const getItem = (key) => items[key];
+
+  const setItem = (key, value) => {
+    items[key] = value;
+  };
+
+  return {
+    getItem,
+    setItem
+  };
+};
+
+const parseJwt = (token) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
+
 const createKindeClient = async (options) => {
+  const store = createStore();
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
@@ -11,6 +35,7 @@ const createKindeClient = async (options) => {
   }
 
   const {
+    client_id: clientId,
     redirect_uri,
     domain,
     is_live = true,
@@ -33,7 +58,7 @@ const createKindeClient = async (options) => {
     throw TypeError('Please supply a boolean value for is_live');
   }
 
-  const client_id = is_live ? 'spa@live' : 'spa@sandbox';
+  const client_id = clientId || 'spa@live';
 
   const config = {
     client_id,
@@ -57,12 +82,11 @@ const createKindeClient = async (options) => {
     return {state, code_challenge, url};
   };
 
-  const getToken = async () => {
-    const storedToken = localStorage.getItem('kinde_token');
+  const useRefreshToken = async () => {
+    const refresh_token = localStorage.getItem('kinde_rt');
 
-    if (storedToken) {
+    if (refresh_token) {
       try {
-        const token = JSON.parse(storedToken);
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
           headers: new Headers({
@@ -71,12 +95,15 @@ const createKindeClient = async (options) => {
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
-            refresh_token: token.refresh_token
+            refresh_token
           })
         });
 
         const data = await response.json();
-        localStorage.setItem('kinde_token', JSON.stringify(data));
+        const accessToken = parseJwt(data.access_token);
+        store.setItem('kinde_token', data);
+        store.setItem('kinde_access_token', accessToken);
+        localStorage.setItem('kinde_rt', data.refresh_token);
         return data.access_token;
       } catch (err) {
         console.log(err);
@@ -84,7 +111,21 @@ const createKindeClient = async (options) => {
     }
   };
 
-  await getToken();
+  // check if there is a token on load (also for full page refresh)
+  await useRefreshToken();
+
+  const getToken = async () => {
+    const token = store.getItem('kinde_token');
+    const accessToken = store.getItem('kinde_access_token');
+    const unixTime = Math.floor(Date.now() / 1000);
+    const isTokenValid = accessToken.exp > unixTime;
+
+    if (token && isTokenValid) {
+      return token;
+    } else {
+      return await useRefreshToken();
+    }
+  };
 
   const handleKindeRedirect = async (options) => {
     const {
@@ -184,7 +225,8 @@ const createKindeClient = async (options) => {
         });
 
         const data = await response.json();
-        localStorage.setItem('kinde_token', JSON.stringify(data));
+        store.setItem('kinde_token', data);
+        localStorage.setItem('kinde_rt', data.refresh_token);
 
         // Remove auth code from address bar
         const url = new URL(window.location);
@@ -204,7 +246,7 @@ const createKindeClient = async (options) => {
     const url = new URL(`${config.domain}/logout`);
 
     try {
-      localStorage.removeItem('kinde_token');
+      store.removeItem('kinde_token');
       url.search = new URLSearchParams({
         redirect: logout_uri
       });
@@ -216,8 +258,7 @@ const createKindeClient = async (options) => {
   };
 
   const getUser = async () => {
-    const storedToken = localStorage.getItem('kinde_token');
-    const token = JSON.parse(storedToken);
+    const token = store.getItem('kinde_token');
     if (token) {
       try {
         const response = await fetch(`${domain}/oauth2/user_profile`, {
