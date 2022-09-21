@@ -5,6 +5,7 @@
   "module": "dist/kinde-auth-pkce-js.esm.min.js",
   "browser": "dist/kinde-auth-pkce-js.umd.min.js",
   "main": "dist/kinde-auth-pkce-js.esm.min.js",
+  "types": "index.d.ts",
   "scripts": {
     "build": "rollup -c",
     "test": "jest",
@@ -48,7 +49,7 @@
     "dist"
   ],
   "lint-staged": {
-    "**/*.{js,jsx,ts,tsx}": [
+    "**/*.{js,jsx}": [
       "npx prettier --write .",
       "npx eslint --fix"
     ]
