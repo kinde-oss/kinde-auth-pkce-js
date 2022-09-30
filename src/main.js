@@ -88,7 +88,7 @@ const createKindeClient = async (options) => {
   };
 
   const useRefreshToken = async () => {
-    const refresh_token = localStorage.getItem('kinde_rt');
+    const refresh_token = store.getItem('kinde_refresh_token');
 
     if (refresh_token) {
       try {
@@ -108,10 +108,10 @@ const createKindeClient = async (options) => {
         const accessToken = parseJwt(data.access_token);
         store.setItem('kinde_token', data);
         store.setItem('kinde_access_token', accessToken);
-        localStorage.setItem('kinde_rt', data.refresh_token);
+        store.setItem('kinde_refresh_token', data.refresh_token);
         return data.access_token;
       } catch (err) {
-        console.log(err);
+        console.error(err);
       }
     }
   };
@@ -231,7 +231,7 @@ const createKindeClient = async (options) => {
 
         const data = await response.json();
         store.setItem('kinde_token', data);
-        localStorage.setItem('kinde_rt', data.refresh_token);
+        store.setItem('kinde_refresh_token', data.refresh_token);
 
         // Remove auth code from address bar
         const url = new URL(window.location);
@@ -241,7 +241,7 @@ const createKindeClient = async (options) => {
           kindeState: data
         };
       } catch (err) {
-        console.log(err);
+        console.error(err);
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
       }
     }
@@ -252,14 +252,14 @@ const createKindeClient = async (options) => {
 
     try {
       store.removeItem('kinde_token');
-      localStorage.removeItem('kinde_rt');
+      store.removeItem('kinde_refresh_token');
       url.search = new URLSearchParams({
         redirect: logout_uri
       });
 
       window.location = url;
     } catch (err) {
-      console.log(err);
+      console.error(err);
     }
   };
 
@@ -275,7 +275,7 @@ const createKindeClient = async (options) => {
 
         return await response.json();
       } catch (err) {
-        console.log(err);
+        console.error(err);
       }
     }
   };
