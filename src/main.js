@@ -116,8 +116,8 @@ const createKindeClient = async (options) => {
     }
   };
 
-  // check if there is a token on load (also for full page refresh)
-  await useRefreshToken();
+  // For onload / new tab / page refresh - when BYO domain with httpOnly cookies
+  // await useRefreshToken();
 
   const getToken = async () => {
     const token = store.getItem('kinde_token');
@@ -230,7 +230,9 @@ const createKindeClient = async (options) => {
         });
 
         const data = await response.json();
+        const accessToken = parseJwt(data.access_token);
         store.setItem('kinde_token', data);
+        store.setItem('kinde_access_token', accessToken);
         store.setItem('kinde_refresh_token', data.refresh_token);
 
         // Remove auth code from address bar
