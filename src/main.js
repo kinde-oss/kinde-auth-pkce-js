@@ -121,11 +121,16 @@ const createKindeClient = async (options) => {
 
   const getToken = async () => {
     const token = store.getItem('kinde_token');
+
+    if (!token) {
+      return await useRefreshToken();
+    }
+
     const accessToken = store.getItem('kinde_access_token');
     const unixTime = Math.floor(Date.now() / 1000);
     const isTokenValid = accessToken.exp > unixTime;
 
-    if (token && isTokenValid) {
+    if (isTokenValid) {
       return token.access_token;
     } else {
       return await useRefreshToken();
