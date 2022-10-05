@@ -29,8 +29,28 @@ const parseJwt = (token) => {
   }
 };
 
+const setupChallenge = async (authorizationEndpoint, appState) => {
+  const state = randomString();
+  const code_verifier = randomString(); // the secret
+  // Hash and base64-urlencode the secret to use as the challenge
+  const code_challenge = await pkceChallengeFromVerifier(code_verifier);
+
+  sessionStorage.setItem(
+    `${SESSION_PREFIX}-${state}`,
+    JSON.stringify({
+      codeVerifier: code_verifier,
+      appState
+    })
+  );
+
+  // Build and encode the authorisation request url
+  const url = new URL(authorizationEndpoint);
+  return {state, code_challenge, url};
+};
+
 const createKindeClient = async (options) => {
   const store = createStore();
+
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
@@ -40,12 +60,18 @@ const createKindeClient = async (options) => {
   }
 
   const {
+    audience,
     client_id: clientId,
-    redirect_uri,
     domain,
     is_live = true,
-    logout_uri = redirect_uri
+    redirect_uri,
+    logout_uri = redirect_uri,
+    on_redirect_callback
   } = options;
+
+  if (audience && typeof audience !== 'string') {
+    throw Error('Please supply a valid audience for your api');
+  }
 
   if (!redirect_uri || typeof options.redirect_uri !== 'string') {
     throw Error(
@@ -66,25 +92,13 @@ const createKindeClient = async (options) => {
   const client_id = clientId || 'spa@live';
 
   const config = {
+    audience,
     client_id,
     redirect_uri,
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
     requested_scopes: 'openid offline',
     domain
-  };
-
-  const setupChallenge = async () => {
-    const state = randomString();
-    const code_verifier = randomString(); // the secret
-    // Hash and base64-urlencode the secret to use as the challenge
-    const code_challenge = await pkceChallengeFromVerifier(code_verifier);
-
-    sessionStorage.setItem(`${SESSION_PREFIX}-${state}`, code_verifier);
-
-    // Build and encode the authorisation request url
-    const url = new URL(config.authorization_endpoint);
-    return {state, code_challenge, url};
   };
 
   const useRefreshToken = async () => {
@@ -116,9 +130,6 @@ const createKindeClient = async (options) => {
     }
   };
 
-  // For onload / new tab / page refresh - when BYO domain with httpOnly cookies
-  // await useRefreshToken();
-
   const getToken = async () => {
     const token = store.getItem('kinde_token');
 
@@ -137,8 +148,70 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const handleKindeRedirect = async (options) => {
+  const handleRedirectToApp = async () => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has('code')) {
+      return {};
+    }
+
+    const code = q.get('code');
+    const state = q.get('state');
+    const error = q.get('error');
+
+    if (error) {
+      console.error(`Error returned from authorization server: ${error}`);
+    }
+
+    const stringState = sessionStorage.getItem(`${SESSION_PREFIX}-${state}`);
+
+    // Verify state
+    if (!stringState) {
+      console.error('Invalid state');
+    } else {
+      const {appState, codeVerifier} = JSON.parse(stringState);
+      // Exchange authorisation code for an access token
+      try {
+        const response = await fetch(config.token_endpoint, {
+          method: 'POST',
+          headers: new Headers({
+            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+          }),
+          body: new URLSearchParams({
+            client_id: config.client_id,
+            code,
+            code_verifier: codeVerifier,
+            grant_type: 'authorization_code',
+            redirect_uri: config.redirect_uri
+          })
+        });
+
+        const data = await response.json();
+        const accessToken = parseJwt(data.access_token);
+        store.setItem('kinde_token', data);
+        store.setItem('kinde_access_token', accessToken);
+        store.setItem('kinde_refresh_token', data.refresh_token);
+
+        // Remove auth code from address bar
+        const url = new URL(window.location);
+        url.search = '';
+        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
+
+        const user = await getUser();
+        window.history.pushState({}, '', url);
+
+        if (on_redirect_callback) {
+          on_redirect_callback(user, appState);
+        }
+      } catch (err) {
+        console.error(err);
+        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
+      }
+    }
+  };
+
+  const redirectToKinde = async (options) => {
     const {
+      app_state,
       start_page,
       is_create_org,
       org_id,
@@ -146,7 +219,10 @@ const createKindeClient = async (options) => {
       org_code
     } = options;
 
-    const {state, code_challenge, url} = await setupChallenge();
+    const {state, code_challenge, url} = await setupChallenge(
+      config.authorization_endpoint,
+      app_state
+    );
 
     let searchParams = {
       redirect_uri,
@@ -158,6 +234,10 @@ const createKindeClient = async (options) => {
       state,
       start_page
     };
+
+    if (audience) {
+      searchParams.audience = audience;
+    }
 
     if (org_code) {
       searchParams.org_code = org_code;
@@ -178,78 +258,40 @@ const createKindeClient = async (options) => {
   };
 
   const register = async (options) => {
-    await handleKindeRedirect({
+    await redirectToKinde({
       ...options,
       start_page: 'registration'
     });
   };
 
   const login = async (options) => {
-    await handleKindeRedirect({
+    await redirectToKinde({
       ...options,
       start_page: 'login'
     });
   };
 
   const createOrg = async (options) => {
-    await handleKindeRedirect({
-      start_page: 'registration',
+    await redirectToKinde({
       ...options,
+      start_page: 'registration',
       is_create_org: true
     });
   };
 
-  const handleRedirectCallback = async () => {
-    const q = new URLSearchParams(window.location.search);
-    if (!q.has('code')) {
-      return {};
-    }
-
-    const code = q.get('code');
-    const state = q.get('state');
-    const error = q.get('error');
-
-    if (error) {
-      console.error(`Error returned from authorization server: ${error}`);
-    }
-
-    // Verify state
-    const code_verifier = sessionStorage.getItem(`${SESSION_PREFIX}-${state}`);
-    if (!code_verifier) {
-      console.error('Invalid state');
-    } else {
-      // Exchange authorisation code for an access token
+  const getUser = async () => {
+    const token = store.getItem('kinde_token');
+    if (token) {
       try {
-        const response = await fetch(config.token_endpoint, {
-          method: 'POST',
+        const response = await fetch(`${domain}/oauth2/user_profile`, {
           headers: new Headers({
-            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-          }),
-          body: new URLSearchParams({
-            client_id: config.client_id,
-            code,
-            code_verifier,
-            grant_type: 'authorization_code',
-            redirect_uri: config.redirect_uri
+            Authorization: 'Bearer ' + token.access_token
           })
         });
 
-        const data = await response.json();
-        const accessToken = parseJwt(data.access_token);
-        store.setItem('kinde_token', data);
-        store.setItem('kinde_access_token', accessToken);
-        store.setItem('kinde_refresh_token', data.refresh_token);
-
-        // Remove auth code from address bar
-        const url = new URL(window.location);
-        url.search = '';
-        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
-        return {
-          kindeState: data
-        };
+        return await response.json();
       } catch (err) {
         console.error(err);
-        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
       }
     }
   };
@@ -270,27 +312,14 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const getUser = async () => {
-    const token = store.getItem('kinde_token');
-    if (token) {
-      try {
-        const response = await fetch(`${domain}/oauth2/user_profile`, {
-          headers: new Headers({
-            Authorization: 'Bearer ' + token.access_token
-          })
-        });
+  // For onload / new tab / page refresh - when BYO domain with httpOnly cookies
+  // await useRefreshToken();
 
-        return await response.json();
-      } catch (err) {
-        console.error(err);
-      }
-    }
-  };
+  await handleRedirectToApp();
 
   return {
     getToken,
     getUser,
-    handleRedirectCallback,
     login,
     logout,
     register,
