@@ -23,4 +23,4 @@ yarn add @kinde-oss/kinde-auth-pkce-js
 
 ## How to use
 
-The easiest way to get up and going is following this guide on our docs site [https://kinde.com/docs/sdks/javascript-sdk](https://kinde.com/docs/sdks/javascript-sdk)
+The easiest way to get up and going is following this guide on our docs site [https://kinde.com/docs/developer-tools/javascript-sdk](https://kinde.com/docs/developer-tools/javascript-sdk)
