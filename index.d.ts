@@ -7,9 +7,11 @@ export type KindeUser = {
 };
 
 export type KindeClientOptions = {
+  audience?: string;
   client_id?: string;
   redirect_uri: string;
   domain: string;
+  is_dangerously_use_local_storage?: boolean;
   is_live?: boolean;
   logout_uri?: string;
 };

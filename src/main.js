@@ -64,6 +64,7 @@ const createKindeClient = async (options) => {
     client_id: clientId,
     domain,
     is_live = true,
+    is_dangerously_use_local_storage = false,
     redirect_uri,
     logout_uri = redirect_uri,
     on_redirect_callback
@@ -89,6 +90,12 @@ const createKindeClient = async (options) => {
     throw TypeError('Please supply a boolean value for is_live');
   }
 
+  if (typeof is_dangerously_use_local_storage !== 'boolean') {
+    throw TypeError(
+      'Please supply a boolean value for is_dangerously_use_local_storage'
+    );
+  }
+
   const client_id = clientId || 'spa@live';
 
   const config = {
@@ -102,7 +109,9 @@ const createKindeClient = async (options) => {
   };
 
   const useRefreshToken = async () => {
-    const refresh_token = store.getItem('kinde_refresh_token');
+    const refresh_token = is_dangerously_use_local_storage
+      ? localStorage.getItem('kinde_refresh_token')
+      : store.getItem('kinde_refresh_token');
 
     if (refresh_token) {
       try {
@@ -122,7 +131,13 @@ const createKindeClient = async (options) => {
         const accessToken = parseJwt(data.access_token);
         store.setItem('kinde_token', data);
         store.setItem('kinde_access_token', accessToken);
-        store.setItem('kinde_refresh_token', data.refresh_token);
+
+        if (is_dangerously_use_local_storage) {
+          localStorage.setItem('kinde_refresh_token', data.refresh_token);
+        } else {
+          store.setItem('kinde_refresh_token', data.refresh_token);
+        }
+
         return data.access_token;
       } catch (err) {
         console.error(err);
@@ -148,12 +163,7 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const handleRedirectToApp = async () => {
-    const q = new URLSearchParams(window.location.search);
-    if (!q.has('code')) {
-      return {};
-    }
-
+  const handleRedirectToApp = async (q) => {
     const code = q.get('code');
     const state = q.get('state');
     const error = q.get('error');
@@ -189,7 +199,11 @@ const createKindeClient = async (options) => {
         const accessToken = parseJwt(data.access_token);
         store.setItem('kinde_token', data);
         store.setItem('kinde_access_token', accessToken);
-        store.setItem('kinde_refresh_token', data.refresh_token);
+        if (is_dangerously_use_local_storage) {
+          localStorage.setItem('kinde_refresh_token', data.refresh_token);
+        } else {
+          store.setItem('kinde_refresh_token', data.refresh_token);
+        }
 
         // Remove auth code from address bar
         const url = new URL(window.location);
@@ -301,7 +315,12 @@ const createKindeClient = async (options) => {
 
     try {
       store.removeItem('kinde_token');
-      store.removeItem('kinde_refresh_token');
+
+      if (is_dangerously_use_local_storage) {
+        localStorage.removeItem('kinde_refresh_token');
+      } else {
+        store.removeItem('kinde_refresh_token');
+      }
       url.search = new URLSearchParams({
         redirect: logout_uri
       });
@@ -312,10 +331,25 @@ const createKindeClient = async (options) => {
     }
   };
 
-  // For onload / new tab / page refresh - when BYO domain with httpOnly cookies
-  // await useRefreshToken();
+  const init = async () => {
+    const q = new URLSearchParams(window.location.search);
+    // Is a redirect from Kinde Auth server
+    if (q.has('code')) {
+      await handleRedirectToApp();
+    } else {
+      // For onload / new tab / page refresh - BYO domain with httpOnly cookies
+      if (is_dangerously_use_local_storage) {
+        await useRefreshToken();
+        const user = await getUser();
 
-  await handleRedirectToApp();
+        if (on_redirect_callback) {
+          on_redirect_callback(user);
+        }
+      }
+    }
+  };
+
+  await init();
 
   return {
     getToken,
