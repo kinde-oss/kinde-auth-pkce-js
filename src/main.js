@@ -335,7 +335,7 @@ const createKindeClient = async (options) => {
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
     if (q.has('code')) {
-      await handleRedirectToApp();
+      await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh - BYO domain with httpOnly cookies
       if (is_dangerously_use_local_storage) {
