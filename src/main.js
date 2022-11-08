@@ -104,7 +104,7 @@ const createKindeClient = async (options) => {
     redirect_uri,
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
-    requested_scopes: 'openid offline',
+    requested_scopes: 'openid profile email',
     domain
   };
 
@@ -297,7 +297,7 @@ const createKindeClient = async (options) => {
     const token = store.getItem('kinde_token');
     if (token) {
       try {
-        const response = await fetch(`${domain}/oauth2/user_profile`, {
+        const response = await fetch(`${domain}/oauth2/v2/user_profile`, {
           headers: new Headers({
             Authorization: 'Bearer ' + token.access_token
           })
