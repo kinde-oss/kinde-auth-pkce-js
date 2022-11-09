@@ -104,7 +104,7 @@ const createKindeClient = async (options) => {
     redirect_uri,
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
-    requested_scopes: 'openid profile email',
+    requested_scopes: 'openid profile email offline',
     domain
   };
 
