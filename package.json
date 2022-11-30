@@ -1,10 +1,9 @@
 {
   "name": "@kinde-oss/kinde-auth-pkce-js",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Kinde PKCE authentication for SPAs",
-  "module": "dist/kinde-auth-pkce-js.esm.min.js",
-  "browser": "dist/kinde-auth-pkce-js.umd.min.js",
-  "main": "dist/kinde-auth-pkce-js.esm.min.js",
+  "module": "dist/kinde-auth-pkce-js.esm.js",
+  "main": "dist/kinde-auth-pkce-js.umd.min.js",
   "types": "index.d.ts",
   "type": "module",
   "scripts": {
@@ -28,8 +27,8 @@
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.17.0",
     "@babel/preset-env": "^7.16.11",
+    "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-terser": "^0.1.0",
-    "rollup-plugin-dts": "^5.0.0",
     "eslint": "^8.8.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-jest": "^26.1.1",
@@ -55,5 +54,8 @@
       "npx prettier --write ."
     ]
   },
-  "private": false
+  "private": false,
+  "dependencies": {
+    "rollup-plugin-dts": "^5.0.0"
+  }
 }
