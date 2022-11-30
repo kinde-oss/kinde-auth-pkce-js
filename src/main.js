@@ -14,7 +14,12 @@ const createStore = () => {
     delete items[key];
   };
 
+  const reset = () => {
+    items = {};
+  };
+
   return {
+    reset,
     getItem,
     removeItem,
     setItem
@@ -108,6 +113,26 @@ const createKindeClient = async (options) => {
     domain
   };
 
+  const setStore = (data) => {
+    const accessToken = parseJwt(data.access_token);
+    const idToken = parseJwt(data.id_token);
+    store.setItem('kinde_token', data);
+    store.setItem('kinde_access_token', accessToken);
+    store.setItem('kinde_id_token', idToken);
+    store.setItem('user', {
+      id: idToken.sub,
+      given_name: idToken.given_name,
+      family_name: idToken.family_name,
+      email: idToken.email
+    });
+
+    if (is_dangerously_use_local_storage) {
+      localStorage.setItem('kinde_refresh_token', data.refresh_token);
+    } else {
+      store.setItem('kinde_refresh_token', data.refresh_token);
+    }
+  };
+
   const useRefreshToken = async () => {
     const refresh_token = is_dangerously_use_local_storage
       ? localStorage.getItem('kinde_refresh_token')
@@ -128,15 +153,7 @@ const createKindeClient = async (options) => {
         });
 
         const data = await response.json();
-        const accessToken = parseJwt(data.access_token);
-        store.setItem('kinde_token', data);
-        store.setItem('kinde_access_token', accessToken);
-
-        if (is_dangerously_use_local_storage) {
-          localStorage.setItem('kinde_refresh_token', data.refresh_token);
-        } else {
-          store.setItem('kinde_refresh_token', data.refresh_token);
-        }
+        setStore(data);
 
         return data.access_token;
       } catch (err) {
@@ -196,21 +213,14 @@ const createKindeClient = async (options) => {
         });
 
         const data = await response.json();
-        const accessToken = parseJwt(data.access_token);
-        store.setItem('kinde_token', data);
-        store.setItem('kinde_access_token', accessToken);
-        if (is_dangerously_use_local_storage) {
-          localStorage.setItem('kinde_refresh_token', data.refresh_token);
-        } else {
-          store.setItem('kinde_refresh_token', data.refresh_token);
-        }
 
+        setStore(data);
         // Remove auth code from address bar
         const url = new URL(window.location);
         url.search = '';
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
 
-        const user = await getUser();
+        const user = getUser();
         window.history.pushState({}, '', url);
 
         if (on_redirect_callback) {
@@ -293,34 +303,21 @@ const createKindeClient = async (options) => {
     });
   };
 
-  const getUser = async () => {
-    const token = store.getItem('kinde_token');
-    if (token) {
-      try {
-        const response = await fetch(`${domain}/oauth2/v2/user_profile`, {
-          headers: new Headers({
-            Authorization: 'Bearer ' + token.access_token
-          })
-        });
-
-        return await response.json();
-      } catch (err) {
-        console.error(err);
-      }
-    }
+  const getUser = () => {
+    const user = store.getItem('user');
+    return user ? user : {};
   };
 
   const logout = async () => {
     const url = new URL(`${config.domain}/logout`);
 
     try {
-      store.removeItem('kinde_token');
+      store.reset();
 
       if (is_dangerously_use_local_storage) {
         localStorage.removeItem('kinde_refresh_token');
-      } else {
-        store.removeItem('kinde_refresh_token');
       }
+
       url.search = new URLSearchParams({
         redirect: logout_uri
       });
@@ -340,7 +337,7 @@ const createKindeClient = async (options) => {
       // For onload / new tab / page refresh - BYO domain with httpOnly cookies
       if (is_dangerously_use_local_storage) {
         await useRefreshToken();
-        const user = await getUser();
+        const user = getUser();
 
         if (on_redirect_callback) {
           on_redirect_callback(user);
