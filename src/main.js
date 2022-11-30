@@ -114,6 +114,8 @@ const createKindeClient = async (options) => {
   };
 
   const setStore = (data) => {
+    if (!data) return;
+
     const accessToken = parseJwt(data.access_token);
     const idToken = parseJwt(data.id_token);
     store.setItem('kinde_token', data);
@@ -290,8 +292,7 @@ const createKindeClient = async (options) => {
 
   const login = async (options) => {
     await redirectToKinde({
-      ...options,
-      start_page: 'login'
+      ...options
     });
   };
 
