@@ -305,8 +305,7 @@ const createKindeClient = async (options) => {
   };
 
   const getUser = () => {
-    const user = store.getItem('user');
-    return user ? user : {};
+    return store.getItem('user');
   };
 
   const logout = async () => {
