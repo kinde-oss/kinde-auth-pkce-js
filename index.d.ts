@@ -1,9 +1,8 @@
 export type KindeUser = {
-  first_name: string | null;
+  given_name: string | null;
   id: string | null;
-  last_name: string | null;
-  preferred_email: string | null;
-  provided_id: string | null;
+  family_name: string | null;
+  email: string | null;
 };
 
 export type KindeClientOptions = {
