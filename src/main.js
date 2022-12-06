@@ -68,15 +68,19 @@ const createKindeClient = async (options) => {
     audience,
     client_id: clientId,
     domain,
-    is_live = true,
     is_dangerously_use_local_storage = false,
     redirect_uri,
     logout_uri = redirect_uri,
-    on_redirect_callback
+    on_redirect_callback,
+    scope = 'openid profile email offline'
   } = options;
 
   if (audience && typeof audience !== 'string') {
     throw Error('Please supply a valid audience for your api');
+  }
+
+  if (scope && typeof scope !== 'string') {
+    throw Error('Please supply a valid scope');
   }
 
   if (!redirect_uri || typeof options.redirect_uri !== 'string') {
@@ -89,10 +93,6 @@ const createKindeClient = async (options) => {
     throw Error(
       'Please supply a valid Kinde domain so we can connect to your account'
     );
-  }
-
-  if (typeof is_live !== 'boolean') {
-    throw TypeError('Please supply a boolean value for is_live');
   }
 
   if (typeof is_dangerously_use_local_storage !== 'boolean') {
@@ -109,7 +109,7 @@ const createKindeClient = async (options) => {
     redirect_uri,
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
-    requested_scopes: 'openid profile email offline',
+    requested_scopes: scope,
     domain
   };
 
@@ -180,6 +180,43 @@ const createKindeClient = async (options) => {
     } else {
       return await useRefreshToken();
     }
+  };
+
+  const getClaim = (claim, tokenKey = 'kinde_access_token') => {
+    const token = store.getItem(tokenKey);
+    return token ? token[claim] : null;
+  };
+
+  const getPermissions = () => {
+    const orgCode = getClaim('org_code');
+    const permissions = getClaim('permissions');
+    return {
+      permissions,
+      orgCode
+    };
+  };
+
+  const getPermission = (key) => {
+    const orgCode = getClaim('org_code');
+    const permissions = getClaim('permissions') || [];
+    return {
+      isGranted: permissions.some((p) => p === key),
+      orgCode
+    };
+  };
+
+  const getOrganization = () => {
+    const orgCode = getClaim('org_code');
+    return {
+      orgCode
+    };
+  };
+
+  const getUserOrganizations = () => {
+    const orgCodes = getClaim('org_codes', 'kinde_id_token');
+    return {
+      orgCodes
+    };
   };
 
   const handleRedirectToApp = async (q) => {
@@ -354,7 +391,12 @@ const createKindeClient = async (options) => {
     login,
     logout,
     register,
-    createOrg
+    createOrg,
+    getClaim,
+    getPermissions,
+    getPermission,
+    getOrganization,
+    getUserOrganizations
   };
 };
 

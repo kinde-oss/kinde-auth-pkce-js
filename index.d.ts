@@ -1,21 +1,21 @@
-export type KindeUser = {
+type KindeUser = {
   given_name: string | null;
   id: string | null;
   family_name: string | null;
   email: string | null;
 };
 
-export type KindeClientOptions = {
+type KindeClientOptions = {
   audience?: string;
   client_id?: string;
   redirect_uri: string;
   domain: string;
   is_dangerously_use_local_storage?: boolean;
-  is_live?: boolean;
   logout_uri?: string;
+  scope?: string;
 };
 
-export type KindeState = {
+type KindeState = {
   access_token: string;
   expires_in: number;
   id_token: string;
@@ -24,15 +24,41 @@ export type KindeState = {
   token_type: string;
 };
 
-export type KindeClient = {
+type KindePermissions = {
+  permissions: string[];
+  orgCode: string;
+};
+
+type KindePermission = {
+  isGranted: boolean;
+  orgCode: string;
+};
+
+type KindeOrganization = {
+  orgCode: string;
+};
+
+type KindeOrganizations = {
+  orgCodes: string[];
+};
+
+type KindeClient = {
   getToken: () => Promise<string | undefined>;
-  getUser: () => Promise<KindeUser | undefined>;
+  getUser: () => KindeUser;
   handleRedirectCallback: () => Promise<{kindeState: KindeState} | undefined>;
   login: (options: any) => Promise<void>;
   logout: () => Promise<void>;
   register: (options: any) => Promise<void>;
   createOrg: (options: any) => Promise<void>;
+  getClaim: (claim: string, tokenKey?: string) => any;
+  getPermissions: () => KindePermissions;
+  getPermission: (key: string) => KindePermission;
+  getOrganization: () => KindeOrganization;
+  getUserOrganizations: () => KindeOrganizations;
 };
-export function createKindeClient(
+
+declare function createKindeClient(
   options: KindeClientOptions
 ): Promise<KindeClient>;
+
+export = createKindeClient;
