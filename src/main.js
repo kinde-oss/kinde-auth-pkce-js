@@ -374,11 +374,6 @@ const createKindeClient = async (options) => {
       // For onload / new tab / page refresh - BYO domain with httpOnly cookies
       if (is_dangerously_use_local_storage) {
         await useRefreshToken();
-        const user = getUser();
-
-        if (on_redirect_callback) {
-          on_redirect_callback(user);
-        }
       }
     }
   };
