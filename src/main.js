@@ -103,6 +103,10 @@ const createKindeClient = async (options) => {
 
   const client_id = clientId || 'spa@live';
 
+  //   Indicates using a custom domain on a production environment
+  const is_use_cookie =
+    !is_dangerously_use_local_storage && !domain.includes('.kinde.com');
+
   const config = {
     audience,
     client_id,
@@ -140,17 +144,18 @@ const createKindeClient = async (options) => {
       ? localStorage.getItem('kinde_refresh_token')
       : store.getItem('kinde_refresh_token');
 
-    if (refresh_token) {
+    if (refresh_token || is_use_cookie) {
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
+          ...(is_use_cookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
           }),
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
-            refresh_token
+            ...(!is_use_cookie && refresh_token && {refresh_token})
           })
         });
 
@@ -239,6 +244,7 @@ const createKindeClient = async (options) => {
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
+          ...(is_use_cookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
           }),
@@ -371,8 +377,8 @@ const createKindeClient = async (options) => {
     if (q.has('code')) {
       await handleRedirectToApp(q);
     } else {
-      // For onload / new tab / page refresh - BYO domain with httpOnly cookies
-      if (is_dangerously_use_local_storage) {
+      // For onload / new tab / page refresh
+      if (is_use_cookie || is_dangerously_use_local_storage) {
         await useRefreshToken();
       }
     }
