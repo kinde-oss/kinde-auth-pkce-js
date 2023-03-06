@@ -129,7 +129,8 @@ const createKindeClient = async (options) => {
       id: idToken.sub,
       given_name: idToken.given_name,
       family_name: idToken.family_name,
-      email: idToken.email
+      email: idToken.email,
+      picture: idToken.picture
     });
 
     if (is_dangerously_use_local_storage) {
