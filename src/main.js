@@ -188,14 +188,14 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const getClaim = (claim, tokenKey = 'kinde_access_token') => {
-    const token = store.getItem(tokenKey);
-    return token ? token[claim] : null;
+  const getClaim = (claim, tokenKey = 'access_token') => {
+    const token = store.getItem(`kinde_${tokenKey}`);
+    return token ? {name: claim, value: token[claim]} : null;
   };
 
   const getPermissions = () => {
-    const orgCode = getClaim('org_code');
-    const permissions = getClaim('permissions');
+    const orgCode = getClaim('org_code')?.value;
+    const permissions = getClaim('permissions')?.value;
     return {
       permissions,
       orgCode
@@ -203,8 +203,8 @@ const createKindeClient = async (options) => {
   };
 
   const getPermission = (key) => {
-    const orgCode = getClaim('org_code');
-    const permissions = getClaim('permissions') || [];
+    const orgCode = getClaim('org_code')?.value;
+    const permissions = getClaim('permissions')?.value || [];
     return {
       isGranted: permissions.some((p) => p === key),
       orgCode
@@ -212,14 +212,14 @@ const createKindeClient = async (options) => {
   };
 
   const getOrganization = () => {
-    const orgCode = getClaim('org_code');
+    const orgCode = getClaim('org_code')?.value;
     return {
       orgCode
     };
   };
 
   const getUserOrganizations = () => {
-    const orgCodes = getClaim('org_codes', 'kinde_id_token');
+    const orgCodes = getClaim('org_codes', 'id_token')?.value;
     return {
       orgCodes
     };
