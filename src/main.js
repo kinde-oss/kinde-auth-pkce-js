@@ -159,6 +159,9 @@ const createKindeClient = async (options) => {
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'User-Agent': `KindeSDK${config._framework || 'JavaScript'}/${
               _frameworkVersion || version
+            }`,
+            'Kinde-SDK': `${config._framework || 'JavaScript'}/${
+              _frameworkVersion || version
             }`
           }),
           body: new URLSearchParams({
