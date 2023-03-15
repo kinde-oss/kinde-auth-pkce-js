@@ -1,3 +1,4 @@
+import {version} from './utils/version';
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
@@ -72,7 +73,9 @@ const createKindeClient = async (options) => {
     redirect_uri,
     logout_uri = redirect_uri,
     on_redirect_callback,
-    scope = 'openid profile email offline'
+    scope = 'openid profile email offline',
+    _framework,
+    _frameworkVersion
   } = options;
 
   if (audience && typeof audience !== 'string') {
@@ -114,7 +117,9 @@ const createKindeClient = async (options) => {
     authorization_endpoint: `${domain}/oauth2/auth`,
     token_endpoint: `${domain}/oauth2/token`,
     requested_scopes: scope,
-    domain
+    domain,
+    _framework,
+    _frameworkVersion
   };
 
   const setStore = (data) => {
@@ -151,7 +156,10 @@ const createKindeClient = async (options) => {
           method: 'POST',
           ...(is_use_cookie && {credentials: 'include'}),
           headers: new Headers({
-            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'User-Agent': `KindeSDK${config._framework || 'JavaScript'}/${
+              _frameworkVersion || version
+            }`
           }),
           body: new URLSearchParams({
             client_id: config.client_id,
