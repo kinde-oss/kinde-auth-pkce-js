@@ -157,8 +157,9 @@ const createKindeClient = async (options) => {
           ...(is_use_cookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'User-Agent': `KindeSDK${config._framework || 'JavaScript'}/${
-              _frameworkVersion || version
+            'Kinde-SDK': `
+            ${config._framework || 'JavaScript'}/${
+              config._frameworkVersion || version
             }`
           }),
           body: new URLSearchParams({
@@ -262,7 +263,7 @@ const createKindeClient = async (options) => {
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Kinde-SDK': `${config._framework || 'JavaScript'}/${
-              _frameworkVersion || version
+              config._frameworkVersion || version
             }`
           }),
           body: new URLSearchParams({
