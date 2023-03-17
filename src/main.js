@@ -261,7 +261,7 @@ const createKindeClient = async (options) => {
           ...(is_use_cookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'User-Agent': `KindeSDK${config._framework || 'JavaScript'}/${
+            'Kinde-SDK': `${config._framework || 'JavaScript'}/${
               _frameworkVersion || version
             }`
           }),
