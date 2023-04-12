@@ -217,7 +217,7 @@ const createKindeClient = async (options) => {
     const flags = getClaimValue('feature_flags');
     const flag = flags && flags[code] ? flags[code] : {};
 
-    if (!flag && !defaultValue) {
+    if (!flag.v && !defaultValue) {
       throw Error(
         `Flag ${code} was not found, and no default value has been provided`
       );
