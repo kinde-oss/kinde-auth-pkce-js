@@ -2,6 +2,12 @@ import {version} from './utils/version';
 import {SESSION_PREFIX} from './config/index';
 import {randomString, pkceChallengeFromVerifier} from './utils/index';
 
+const flagDataTypeMap = {
+  s: 'string',
+  i: 'integer',
+  b: 'boolean'
+};
+
 const createStore = () => {
   let items = {};
 
@@ -205,6 +211,58 @@ const createKindeClient = async (options) => {
   const getClaimValue = (claim, tokenKey = 'access_token') => {
     const obj = getClaim(claim, tokenKey);
     return obj && obj.value;
+  };
+
+  const getFlag = (code, defaultValue, flagType) => {
+    const flags = getClaimValue('feature_flags');
+    const flag = flags && flags[code] ? flags[code] : {};
+
+    if (!flag.v && !defaultValue) {
+      throw Error(
+        `Flag ${code} was not found, and no default value has been provided`
+      );
+    }
+
+    if (flagType && flag.t && flagType !== flag.t) {
+      throw Error(
+        `Flag ${code} is of type ${flagDataTypeMap[flag.t]} - requested type ${
+          flagDataTypeMap[flagType]
+        }`
+      );
+    }
+    return {
+      code,
+      type: flagDataTypeMap[flag.t || flagType],
+      value: flag.v == null ? defaultValue : flag.v,
+      is_default: flag.v == null
+    };
+  };
+
+  const getBooleanFlag = (code, defaultValue) => {
+    try {
+      const flag = getFlag(code, defaultValue, 'b');
+      return flag.value;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getStringFlag = (code, defaultValue) => {
+    try {
+      const flag = getFlag(code, defaultValue, 's');
+      return flag.value;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getIntegerFlag = (code, defaultValue) => {
+    try {
+      const flag = getFlag(code, defaultValue, 'i');
+      return flag.value;
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getPermissions = () => {
@@ -412,6 +470,10 @@ const createKindeClient = async (options) => {
     register,
     createOrg,
     getClaim,
+    getFlag,
+    getBooleanFlag,
+    getStringFlag,
+    getIntegerFlag,
     getPermissions,
     getPermission,
     getOrganization,
