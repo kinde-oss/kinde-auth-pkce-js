@@ -38,6 +38,18 @@ export type KindePermission = {
   orgCode: string;
 };
 
+export type KindeFlagTypeCode = 'b' | 'i' | 's';
+
+export type KindeFlagTypeValue = 'boolean' | 'integer' | 'string';
+
+export type KindeFlag = {
+  code: string;
+  type: KindeFlagTypeValue | null;
+  value: any;
+  defaultValue: any | null;
+  is_default: boolean;
+};
+
 export type KindeOrganization = {
   orgCode: string;
 };
@@ -54,6 +66,14 @@ export type KindeClient = {
   register: (options: any) => Promise<void>;
   createOrg: (options: any) => Promise<void>;
   getClaim: (claim: string, tokenKey?: string) => any;
+  getFlag: (
+    code: string,
+    defaultValue?: any,
+    flagType?: KindeFlagTypeCode
+  ) => KindeFlag;
+  getBooleanFlag: (code: string, defaultValue?: boolean) => boolean;
+  getStringFlag: (code, defaultValue) => string;
+  getIntegerFlag: (code, defaultValue) => integer;
   getPermissions: () => KindePermissions;
   getPermission: (key: string) => KindePermission;
   getOrganization: () => KindeOrganization;
