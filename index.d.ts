@@ -45,8 +45,8 @@ export type KindeFlagTypeValue = 'boolean' | 'integer' | 'string';
 export type KindeFlag = {
   code: string;
   type: KindeFlagTypeValue | null;
-  value: any;
-  defaultValue: any | null;
+  value: string | boolean | number;
+  defaultValue?: string | boolean | number;
   is_default: boolean;
 };
 
@@ -58,17 +58,27 @@ export type KindeOrganizations = {
   orgCodes: string[];
 };
 
+export type OrgOptions = {
+  org_name?: string;
+};
+
+export type AuthOptions = {
+  org_code?: string;
+  app_state?: object;
+};
+
 export type KindeClient = {
   getToken: () => Promise<string | undefined>;
   getUser: () => KindeUser;
-  login: (options: any) => Promise<void>;
+  getUserProfile: () => KindeUser;
+  login: (options: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
-  register: (options: any) => Promise<void>;
-  createOrg: (options: any) => Promise<void>;
+  register: (options: AuthOptions) => Promise<void>;
+  createOrg: (options: OrgOptions) => Promise<void>;
   getClaim: (claim: string, tokenKey?: string) => any;
   getFlag: (
     code: string,
-    defaultValue?: any,
+    defaultValue?: string | boolean | number,
     flagType?: KindeFlagTypeCode
   ) => KindeFlag;
   getBooleanFlag: (code: string, defaultValue?: boolean) => boolean;
