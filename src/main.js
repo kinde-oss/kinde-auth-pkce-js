@@ -359,7 +359,6 @@ const createKindeClient = async (options) => {
       app_state,
       start_page,
       is_create_org,
-      org_id,
       org_name = '',
       org_code
     } = options;
@@ -393,10 +392,6 @@ const createKindeClient = async (options) => {
       searchParams.org_name = org_name;
     }
 
-    if (org_id) {
-      searchParams.org_id = org_id;
-    }
-
     url.search = new URLSearchParams(searchParams);
 
     window.location = url;
@@ -425,6 +420,33 @@ const createKindeClient = async (options) => {
 
   const getUser = () => {
     return store.getItem('user');
+  };
+
+  const getUserProfile = async () => {
+    const token = await getToken();
+    const headers = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch(`${config.domain}/oauth2/v2/user_profile`, {
+        method: 'GET',
+        headers: headers
+      });
+      const json = await res.json();
+      console.log({json});
+      store.setItem('user', {
+        id: json.sub,
+        given_name: json.given_name,
+        family_name: json.family_name,
+        email: json.email,
+        picture: json.picture
+      });
+      return store.getItem('user');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const logout = async () => {
@@ -465,6 +487,7 @@ const createKindeClient = async (options) => {
   return {
     getToken,
     getUser,
+    getUserProfile,
     login,
     logout,
     register,
