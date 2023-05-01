@@ -435,7 +435,6 @@ const createKindeClient = async (options) => {
         headers: headers
       });
       const json = await res.json();
-      console.log({json});
       store.setItem('user', {
         id: json.sub,
         given_name: json.given_name,

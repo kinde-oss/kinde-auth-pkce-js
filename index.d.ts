@@ -60,6 +60,7 @@ export type KindeOrganizations = {
 
 export type OrgOptions = {
   org_name?: string;
+  app_state?: object;
 };
 
 export type AuthOptions = {
