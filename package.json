@@ -12,7 +12,7 @@
     "watch": "rollup -c -w",
     "prepare": "husky install",
     "release": "release-it",
-    "lint": "eslint --ignore-path .eslintignore --ext .js,.ts ."
+    "lint": "eslint --ignore-path .eslintignore --ext .js"
   },
   "author": {
     "name": "Kinde",
