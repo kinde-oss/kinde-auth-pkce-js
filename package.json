@@ -10,7 +10,9 @@
     "build": "genversion --es6 src/utils/version.js && rollup -c",
     "test": "jest",
     "watch": "rollup -c -w",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "release": "release-it",
+    "lint": "eslint --ignore-path .eslintignore --ext .js,.ts ."
   },
   "author": {
     "name": "Kinde",
@@ -38,6 +40,7 @@
     "jest": "^27.5.1",
     "lint-staged": "^12.3.5",
     "prettier": "^2.5.1",
+    "release-it": "^15.10.3",
     "rollup": "^3.5.0",
     "rollup-plugin-dts": "^5.0.0"
   },
