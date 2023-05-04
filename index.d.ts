@@ -60,6 +60,7 @@ export type KindeOrganizations = {
 
 export type OrgOptions = {
   org_name?: string;
+  app_state?: object;
 };
 
 export type AuthOptions = {
@@ -83,7 +84,7 @@ export type KindeClient = {
   ) => KindeFlag;
   getBooleanFlag: (code: string, defaultValue?: boolean) => boolean;
   getStringFlag: (code, defaultValue) => string;
-  getIntegerFlag: (code, defaultValue) => integer;
+  getIntegerFlag: (code, defaultValue) => number;
   getPermissions: () => KindePermissions;
   getPermission: (key: string) => KindePermission;
   getOrganization: () => KindeOrganization;
