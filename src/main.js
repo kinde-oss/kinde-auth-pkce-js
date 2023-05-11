@@ -1,68 +1,19 @@
 import {version} from './utils/version';
-import {SESSION_PREFIX} from './config/index';
-import {randomString, pkceChallengeFromVerifier} from './utils/index';
-
-const flagDataTypeMap = {
-  s: 'string',
-  i: 'integer',
-  b: 'boolean'
-};
-
-const createStore = () => {
-  let items = {};
-
-  const getItem = (key) => items[key];
-
-  const setItem = (key, value) => {
-    items[key] = value;
-  };
-
-  const removeItem = (key) => {
-    delete items[key];
-  };
-
-  const reset = () => {
-    items = {};
-  };
-
-  return {
-    reset,
-    getItem,
-    removeItem,
-    setItem
-  };
-};
-
-const parseJwt = (token) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
-};
-
-const setupChallenge = async (authorizationEndpoint, appState) => {
-  const state = randomString();
-  const code_verifier = randomString(); // the secret
-  // Hash and base64-urlencode the secret to use as the challenge
-  const code_challenge = await pkceChallengeFromVerifier(code_verifier);
-
-  sessionStorage.setItem(
-    `${SESSION_PREFIX}-${state}`,
-    JSON.stringify({
-      codeVerifier: code_verifier,
-      appState
-    })
-  );
-
-  // Build and encode the authorisation request url
-  const url = new URL(authorizationEndpoint);
-  return {state, code_challenge, url};
-};
+import {SESSION_PREFIX} from './constants/index';
+import {
+  parseJwt,
+  setupChallenge,
+  getClaim,
+  getClaimValue,
+  getUserOrganizations,
+  getIntegerFlag,
+  getStringFlag,
+  getBooleanFlag,
+  getFlag
+} from './utils/index';
+import {store} from './state/store';
 
 const createKindeClient = async (options) => {
-  const store = createStore();
-
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
@@ -203,68 +154,6 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const getClaim = (claim, tokenKey = 'access_token') => {
-    const token = store.getItem(`kinde_${tokenKey}`);
-    return token ? {name: claim, value: token[claim]} : null;
-  };
-
-  const getClaimValue = (claim, tokenKey = 'access_token') => {
-    const obj = getClaim(claim, tokenKey);
-    return obj && obj.value;
-  };
-
-  const getFlag = (code, defaultValue, flagType) => {
-    const flags = getClaimValue('feature_flags');
-    const flag = flags && flags[code] ? flags[code] : {};
-
-    if (flag.v == 'undefined' && !defaultValue) {
-      throw Error(
-        `Flag ${code} was not found, and no default value has been provided`
-      );
-    }
-
-    if (flagType && flag.t && flagType !== flag.t) {
-      throw Error(
-        `Flag ${code} is of type ${flagDataTypeMap[flag.t]} - requested type ${
-          flagDataTypeMap[flagType]
-        }`
-      );
-    }
-    return {
-      code,
-      type: flagDataTypeMap[flag.t || flagType],
-      value: flag.v == null ? defaultValue : flag.v,
-      is_default: flag.v == null
-    };
-  };
-
-  const getBooleanFlag = (code, defaultValue) => {
-    try {
-      const flag = getFlag(code, defaultValue, 'b');
-      return flag.value;
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const getStringFlag = (code, defaultValue) => {
-    try {
-      const flag = getFlag(code, defaultValue, 's');
-      return flag.value;
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const getIntegerFlag = (code, defaultValue) => {
-    try {
-      const flag = getFlag(code, defaultValue, 'i');
-      return flag.value;
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const getPermissions = () => {
     const orgCode = getClaimValue('org_code');
     const permissions = getClaimValue('permissions');
@@ -287,13 +176,6 @@ const createKindeClient = async (options) => {
     const orgCode = getClaimValue('org_code');
     return {
       orgCode
-    };
-  };
-
-  const getUserOrganizations = () => {
-    const orgCodes = getClaimValue('org_codes', 'id_token');
-    return {
-      orgCodes
     };
   };
 
