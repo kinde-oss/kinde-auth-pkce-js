@@ -80,7 +80,7 @@ const createKindeClient = async (options) => {
   };
 
   const setStore = (data) => {
-    if (!data) return;
+    if (!data || data.error) return;
 
     const accessToken = parseJwt(data.access_token);
     const idToken = parseJwt(data.id_token);
