@@ -257,9 +257,12 @@ const createKindeClient = async (options) => {
       scope: config.requested_scopes,
       code_challenge,
       code_challenge_method: 'S256',
-      state,
-      start_page
+      state
     };
+
+    if (start_page) {
+      searchParams.start_page = start_page;
+    }
 
     if (audience) {
       searchParams.audience = audience;
