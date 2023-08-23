@@ -1,6 +1,7 @@
 import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
 import {
+  isValidJwt,
   parseJwt,
   setupChallenge,
   getClaim,
@@ -144,14 +145,28 @@ const createKindeClient = async (options) => {
     }
 
     const accessToken = store.getItem('kinde_access_token');
-    const unixTime = Math.floor(Date.now() / 1000);
-    const isTokenValid = accessToken.exp > unixTime;
+    const isTokenValid = isValidJwt(accessToken);
 
     if (isTokenValid) {
       return token.access_token;
     } else {
       return await useRefreshToken();
     }
+  };
+
+  const isAuthenticated = async () => {
+    const accessToken = store.getItem('kinde_access_token');
+    if (!accessToken) {
+      return false;
+    }
+
+    const isTokenValid = isValidJwt(accessToken);
+    if (isTokenValid) {
+      return true;
+    }
+
+    await useRefreshToken();
+    return true;
   };
 
   const getPermissions = () => {
@@ -375,6 +390,7 @@ const createKindeClient = async (options) => {
     login,
     logout,
     register,
+    isAuthenticated,
     createOrg,
     getClaim,
     getFlag,

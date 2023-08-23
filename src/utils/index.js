@@ -1,6 +1,7 @@
 export {pkceChallengeFromVerifier} from './pkceChallengeFromVerifier/pkceChallengeFromVerifier';
 export {randomString} from './randomString/randomString';
 export {parseJwt} from './parseJwt/parseJwt';
+export {isValidJwt} from './isValidJwt/isValidJwt';
 export {setupChallenge} from './setupChallenge/setupChallenge';
 export {getClaim} from './getClaim/getClaim';
 export {getClaimValue} from './getClaimValue/getClaimValue';
