@@ -4,12 +4,13 @@
   "description": "Kinde PKCE authentication for SPAs",
   "module": "dist/kinde-auth-pkce-js.esm.js",
   "main": "dist/kinde-auth-pkce-js.umd.min.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/main.d.ts",
   "type": "module",
   "scripts": {
-    "build": "genversion --es6 src/utils/version.js && rollup -c",
+    "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+    "build": "genversion --es6 src/utils/version.js && npm run rollup",
     "test": "jest",
-    "watch": "rollup -c -w",
+    "watch": "npm run rollup -- --watch",
     "prepare": "husky install",
     "release": "release-it",
     "lint": "eslint --ignore-path .eslintignore --ext .js"
@@ -32,6 +33,7 @@
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-terser": "^0.1.0",
+    "@rollup/plugin-typescript": "^11.1.3",
     "eslint": "^8.8.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-jest": "^26.1.1",
@@ -42,7 +44,7 @@
     "prettier": "^2.5.1",
     "release-it": "^16.1.3",
     "rollup": "^3.5.0",
-    "rollup-plugin-dts": "^5.0.0"
+    "tslib": "^2.6.2"
   },
   "keywords": [
     "Kinde",
