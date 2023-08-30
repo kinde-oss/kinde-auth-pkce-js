@@ -1,5 +1,6 @@
 import {SESSION_PREFIX} from '../../constants/index';
-import {randomString, pkceChallengeFromVerifier} from './../../utils/index';
+import {pkceChallengeFromVerifier} from '../pkceChallengeFromVerifier/pkceChallengeFromVerifier';
+import {randomString} from '../randomString/randomString';
 
 const setupChallenge = async (authorizationEndpoint, appState) => {
   const state = randomString();
