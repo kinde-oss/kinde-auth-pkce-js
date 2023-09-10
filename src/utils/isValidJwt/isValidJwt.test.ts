@@ -7,7 +7,7 @@ describe('isValidJwt util', () => {
   beforeEach(() => initializeStore());
 
   test('returns false if provided token is expired', () => {
-    const expiredToken = store.getItem('kinde_access_token');
+    const expiredToken = store.getItem('kinde_access_token') as { exp: number };
     expect(isValidJwt(expiredToken)).toBe(false);
   });
 
