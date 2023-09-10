@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
-    "build": "genversion --es6 src/utils/version.js && npm run rollup",
+    "build": "genversion --es6 src/utils/version.ts && npm run rollup",
     "test": "jest",
     "watch": "npm run rollup -- --watch",
     "prepare": "husky install",
