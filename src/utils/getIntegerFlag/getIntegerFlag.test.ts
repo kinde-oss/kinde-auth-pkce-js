@@ -15,12 +15,12 @@ describe('getIntegerFlag util', () => {
   });
 
   test('error out when flag does not exist and no default provided', () => {
-    expect(getIntegerFlag('team_count').message).toBe(
+    expect((getIntegerFlag('team_count') as Error).message).toBe(
       'Flag team_count was not found, and no default value has been provided'
     );
   });
   test('error out when flag is of wrong type', () => {
-    expect(getIntegerFlag('is_dark_mode', false).message).toBe(
+    expect((getIntegerFlag('is_dark_mode', 0) as Error).message).toBe(
       'Flag is_dark_mode is of type boolean - requested type integer'
     );
   });

@@ -15,12 +15,12 @@ describe('getBooleanFlag util', () => {
   });
 
   test('error out when flag does not exist and no default provided', () => {
-    expect(getBooleanFlag('new_feature').message).toBe(
+    expect((getBooleanFlag('new_feature') as Error).message).toBe(
       'Flag new_feature was not found, and no default value has been provided'
     );
   });
   test('error out when flag is of wrong type', () => {
-    expect(getBooleanFlag('theme', false).message).toBe(
+    expect((getBooleanFlag('theme', false) as Error).message).toBe(
       'Flag theme is of type string - requested type boolean'
     );
   });
