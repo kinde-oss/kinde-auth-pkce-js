@@ -4,7 +4,7 @@
   "description": "Kinde PKCE authentication for SPAs",
   "module": "dist/kinde-auth-pkce-js.esm.js",
   "main": "dist/kinde-auth-pkce-js.umd.min.js",
-  "types": "dist/main.d.ts",
+  "types": "dist/types",
   "type": "module",
   "scripts": {
     "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",

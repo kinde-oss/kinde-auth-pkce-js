@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
 
 export default defineConfig({
-  input: 'src/main.ts',
+  input: 'src/index.ts',
   output: [
     {
       name: 'createKindeClient',
