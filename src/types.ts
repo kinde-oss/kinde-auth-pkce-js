@@ -84,8 +84,14 @@ export type AuthOptions = {
   app_state?: object;
 };
 
+export type RedirectOptions = OrgOptions & AuthOptions & {
+  start_page?: string;
+  is_create_org?: boolean;
+};
+
 export type KindeClient = {
   getToken: () => Promise<string | undefined>;
+  isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser>;
   login: (options: AuthOptions) => Promise<void>;
