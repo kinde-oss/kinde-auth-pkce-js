@@ -28,6 +28,8 @@ export type KindeClientOptions = {
   _frameworkVersion?: string;
 };
 
+export type ClaimTokenKey = 'access_token' | 'id_token';
+
 export type KindeClaim = {
   name: string;
   value: unknown;
@@ -93,20 +95,20 @@ export type KindeClient = {
   getToken: () => Promise<string | undefined>;
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
-  getUserProfile: () => Promise<KindeUser>;
+  getUserProfile: () => Promise<KindeUser | undefined>;
   login: (options: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
   register: (options: AuthOptions) => Promise<void>;
   createOrg: (options: OrgOptions) => Promise<void>;
-  getClaim: (claim: string, tokenKey?: string) => KindeClaim;
+  getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
   getFlag: <T extends KindeFlagTypeCode>(
     code: string,
     defaultValue?: KindeFlagValueType[T],
     flagType?: T
   ) => KindeFlag<T>;
-  getBooleanFlag: (code: string, defaultValue?: boolean) => boolean;
-  getStringFlag: (code: string, defaultValue: string) => string;
-  getIntegerFlag: (code: number, defaultValue: number) => number;
+  getBooleanFlag: (code: string, defaultValue?: boolean) => boolean | Error;
+  getStringFlag: (code: string, defaultValue: string) => string | Error;
+  getIntegerFlag: (code: string, defaultValue: number) => number | Error;
   getPermissions: () => KindePermissions;
   getPermission: (key: string) => KindePermission;
   getOrganization: () => KindeOrganization;

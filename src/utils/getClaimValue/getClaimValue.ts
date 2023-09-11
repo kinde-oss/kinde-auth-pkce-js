@@ -1,9 +1,9 @@
 import {getClaim} from '../getClaim/getClaim';
-import type {TokenKey} from '../getClaim/getClaim.types';
+import type {ClaimTokenKey} from '../../types';
 
 const getClaimValue = (
   claim: string,
-  tokenKey: TokenKey = 'access_token'
+  tokenKey: ClaimTokenKey = 'access_token'
 ): unknown => {
   const obj = getClaim(claim, tokenKey);
   return obj && obj.value;

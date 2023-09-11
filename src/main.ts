@@ -16,6 +16,7 @@ import {
 import {store} from './state/store';
 import type {
   AuthOptions,
+  KindeClient,
   KindeClientOptions,
   KindeOrganization,
   KindePermission,
@@ -26,7 +27,7 @@ import type {
   RedirectOptions,
 } from './types';
 
-const createKindeClient = async (options: KindeClientOptions) => {
+const createKindeClient = async (options: KindeClientOptions): Promise<KindeClient> => {
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
