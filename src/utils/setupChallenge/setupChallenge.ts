@@ -3,7 +3,7 @@ import {pkceChallengeFromVerifier} from '../pkceChallengeFromVerifier/pkceChalle
 import {randomString} from '../randomString/randomString';
 import { PKCEChallenge } from './setupChallenge.types';
 
-const setupChallenge = async (authorizationEndpoint: string, appState: string): Promise<PKCEChallenge> => {
+const setupChallenge = async (authorizationEndpoint: string, appState?: object): Promise<PKCEChallenge> => {
   const state = randomString();
   const code_verifier = randomString(); // the secret
   // Hash and base64-urlencode the secret to use as the challenge
