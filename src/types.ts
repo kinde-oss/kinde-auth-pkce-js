@@ -22,7 +22,7 @@ export type KindeClientOptions = {
   domain: string;
   is_dangerously_use_local_storage?: boolean;
   logout_uri?: string;
-  on_redirect_callback?: (user: KindeUser, appState?: any) => void;
+  on_redirect_callback?: (user: KindeUser, appState?: object) => void;
   scope?: string;
   _framework?: string;
   _frameworkVersion?: string;
@@ -86,10 +86,11 @@ export type AuthOptions = {
   app_state?: object;
 };
 
-export type RedirectOptions = OrgOptions & AuthOptions & {
-  start_page?: string;
-  is_create_org?: boolean;
-};
+export type RedirectOptions = OrgOptions &
+  AuthOptions & {
+    start_page?: string;
+    is_create_org?: boolean;
+  };
 
 export type KindeClient = {
   getToken: () => Promise<string | undefined>;

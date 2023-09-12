@@ -1,6 +1,6 @@
 import {initializeStore} from '../../testData/initializeStore';
 import {accessTokenStub} from '../../testData/accessTokenStub';
-import type { JWT } from './isValidJwt.types';
+import type {JWT} from './isValidJwt.types';
 import {isValidJwt} from './isValidJwt';
 import {store} from '../../state/store';
 

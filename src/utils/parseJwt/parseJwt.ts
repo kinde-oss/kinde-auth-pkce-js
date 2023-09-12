@@ -1,4 +1,4 @@
-import { JWT } from "../isValidJwt/isValidJwt.types";
+import {JWT} from '../isValidJwt/isValidJwt.types';
 
 const parseJwt = (token: string): JWT | null => {
   try {

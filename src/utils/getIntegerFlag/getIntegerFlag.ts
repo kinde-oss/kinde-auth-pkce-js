@@ -1,6 +1,9 @@
 import {getFlag} from '../getFlag/getFlag';
 
-const getIntegerFlag = (code: string, defaultValue?: number): number | Error => {
+const getIntegerFlag = (
+  code: string,
+  defaultValue?: number
+): number | Error => {
   try {
     const flag = getFlag<'i'>(code, defaultValue, 'i');
     return flag.value;

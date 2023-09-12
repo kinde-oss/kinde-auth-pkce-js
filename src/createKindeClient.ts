@@ -24,10 +24,12 @@ import type {
   KindeState,
   KindeUser,
   OrgOptions,
-  RedirectOptions,
+  RedirectOptions
 } from './types';
 
-const createKindeClient = async (options: KindeClientOptions): Promise<KindeClient> => {
+const createKindeClient = async (
+  options: KindeClientOptions
+): Promise<KindeClient> => {
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
@@ -93,7 +95,7 @@ const createKindeClient = async (options: KindeClientOptions): Promise<KindeClie
     _frameworkVersion
   };
 
-  const setStore = (data: KindeState & { error: string }) => {
+  const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
     const accessToken = parseJwt(data.access_token);
@@ -118,8 +120,8 @@ const createKindeClient = async (options: KindeClientOptions): Promise<KindeClie
 
   const useRefreshToken = async () => {
     const refresh_token = is_dangerously_use_local_storage
-      ? localStorage.getItem('kinde_refresh_token') as string
-      : store.getItem('kinde_refresh_token') as string;
+      ? (localStorage.getItem('kinde_refresh_token') as string)
+      : (store.getItem('kinde_refresh_token') as string);
 
     if (refresh_token || is_use_cookie) {
       try {
@@ -273,12 +275,12 @@ const createKindeClient = async (options: KindeClientOptions): Promise<KindeClie
       org_code
     } = options;
 
-    const { state, code_challenge, url } = await setupChallenge(
+    const {state, code_challenge, url} = await setupChallenge(
       config.authorization_endpoint,
       app_state
     );
 
-    let searchParams: Record<string, string> = {
+    const searchParams: Record<string, string> = {
       redirect_uri,
       client_id,
       response_type: 'code',

@@ -3,9 +3,7 @@ import type {Config} from 'jest';
 const testConfig: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: [
-    '**/?(*.)+(spec|test).ts'
-  ],
+  testMatch: ['**/?(*.)+(spec|test).ts'],
   transform: {
     '^.+\\.ts$': 'ts-jest'
   },
