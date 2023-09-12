@@ -5,7 +5,7 @@ import dts from 'rollup-plugin-dts';
 
 const require = createRequire(import.meta.url);
 const tscf = require('./tsconfig.json');
-const { declarationDir, outDir } = tscf.compilerOptions
+const {declarationDir, outDir} = tscf.compilerOptions;
 
 export default defineConfig({
   input: `${declarationDir}/index.d.ts`,
@@ -15,10 +15,10 @@ export default defineConfig({
     format: 'es'
   },
   plugins: [
-    del({ 
-      targets: [declarationDir], 
-      hook: 'buildEnd',
+    del({
+      targets: [declarationDir],
+      hook: 'buildEnd'
     }),
-    dts(),
-  ],
+    dts()
+  ]
 });

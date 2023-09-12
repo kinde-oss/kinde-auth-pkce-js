@@ -1,9 +1,12 @@
 import {SESSION_PREFIX} from '../../constants/index';
 import {pkceChallengeFromVerifier} from '../pkceChallengeFromVerifier/pkceChallengeFromVerifier';
 import {randomString} from '../randomString/randomString';
-import { PKCEChallenge } from './setupChallenge.types';
+import {PKCEChallenge} from './setupChallenge.types';
 
-const setupChallenge = async (authorizationEndpoint: string, appState?: object): Promise<PKCEChallenge> => {
+const setupChallenge = async (
+  authorizationEndpoint: string,
+  appState?: object
+): Promise<PKCEChallenge> => {
   const state = randomString();
   const code_verifier = randomString(); // the secret
   // Hash and base64-urlencode the secret to use as the challenge
