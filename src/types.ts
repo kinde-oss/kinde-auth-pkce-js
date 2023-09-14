@@ -22,10 +22,17 @@ export type KindeClientOptions = {
   domain: string;
   is_dangerously_use_local_storage?: boolean;
   logout_uri?: string;
-  on_redirect_callback?: (user: KindeUser, appState?: any) => void;
+  on_redirect_callback?: (user: KindeUser, appState?: object) => void;
   scope?: string;
   _framework?: string;
   _frameworkVersion?: string;
+};
+
+export type ClaimTokenKey = 'access_token' | 'id_token';
+
+export type KindeClaim = {
+  name: string;
+  value: unknown;
 };
 
 export type KindePermissions = {
@@ -38,15 +45,26 @@ export type KindePermission = {
   orgCode: string;
 };
 
+export type KindeFlagValueType = {
+  s: string;
+  i: number;
+  b: boolean;
+};
+
+export type KindeFlagTypeString = {
+  s: 'string';
+  i: 'integer';
+  b: 'boolean';
+};
+
 export type KindeFlagTypeCode = 'b' | 'i' | 's';
 
 export type KindeFlagTypeValue = 'boolean' | 'integer' | 'string';
 
-export type KindeFlag = {
+export type KindeFlag<T extends KindeFlagTypeCode> = {
   code: string;
-  type: KindeFlagTypeValue | null;
-  value: string | boolean | number;
-  defaultValue?: string | boolean | number;
+  type: KindeFlagTypeString[T] | null;
+  value: KindeFlagValueType[T];
   is_default: boolean;
 };
 
@@ -68,32 +86,32 @@ export type AuthOptions = {
   app_state?: object;
 };
 
+export type RedirectOptions = OrgOptions &
+  AuthOptions & {
+    start_page?: string;
+    is_create_org?: boolean;
+  };
+
 export type KindeClient = {
   getToken: () => Promise<string | undefined>;
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
-  getUserProfile: () => Promise<KindeUser>;
+  getUserProfile: () => Promise<KindeUser | undefined>;
   login: (options: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
   register: (options: AuthOptions) => Promise<void>;
   createOrg: (options: OrgOptions) => Promise<void>;
-  getClaim: (claim: string, tokenKey?: string) => any;
-  getFlag: (
+  getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
+  getFlag: <T extends KindeFlagTypeCode>(
     code: string,
-    defaultValue?: string | boolean | number,
-    flagType?: KindeFlagTypeCode
-  ) => KindeFlag;
-  getBooleanFlag: (code: string, defaultValue?: boolean) => boolean;
-  getStringFlag: (code, defaultValue) => string;
-  getIntegerFlag: (code, defaultValue) => number;
+    defaultValue?: KindeFlagValueType[T],
+    flagType?: T
+  ) => KindeFlag<T>;
+  getBooleanFlag: (code: string, defaultValue?: boolean) => boolean | Error;
+  getStringFlag: (code: string, defaultValue: string) => string | Error;
+  getIntegerFlag: (code: string, defaultValue: number) => number | Error;
   getPermissions: () => KindePermissions;
   getPermission: (key: string) => KindePermission;
   getOrganization: () => KindeOrganization;
   getUserOrganizations: () => KindeOrganizations;
 };
-
-export function createKindeClient(
-  options: KindeClientOptions
-): Promise<KindeClient>;
-
-export = createKindeClient;

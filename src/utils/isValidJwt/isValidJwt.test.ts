@@ -1,5 +1,6 @@
 import {initializeStore} from '../../testData/initializeStore';
 import {accessTokenStub} from '../../testData/accessTokenStub';
+import type {JWT} from './isValidJwt.types';
 import {isValidJwt} from './isValidJwt';
 import {store} from '../../state/store';
 
@@ -7,7 +8,7 @@ describe('isValidJwt util', () => {
   beforeEach(() => initializeStore());
 
   test('returns false if provided token is expired', () => {
-    const expiredToken = store.getItem('kinde_access_token');
+    const expiredToken = store.getItem('kinde_access_token') as JWT;
     expect(isValidJwt(expiredToken)).toBe(false);
   });
 

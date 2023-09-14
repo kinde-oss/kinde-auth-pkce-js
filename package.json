@@ -7,12 +7,17 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "genversion --es6 src/utils/version.js && rollup -c",
+    "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+    "rollup:types": "rollup --config rollup.types.config.ts --configPlugin @rollup/plugin-typescript",
+    "build": "genversion --es6 src/utils/version.ts && npm run rollup && npm run rollup:types",
     "test": "jest",
-    "watch": "rollup -c -w",
+    "watch": "npm run rollup -- --watch",
     "prepare": "husky install",
     "release": "release-it",
-    "lint": "eslint --ignore-path .eslintignore --ext .js"
+    "lint": "eslint --ignore-path .eslintignore --ext .js,.ts .",
+    "lint:fix": "npm run lint -- --fix",
+    "prettier": "prettier -c .",
+    "prettier:write": "prettier -w ."
   },
   "author": {
     "name": "Kinde",
@@ -27,11 +32,13 @@
   "homepage": "https://kinde.com",
   "license": "MIT",
   "devDependencies": {
-    "@babel/plugin-transform-runtime": "^7.17.0",
-    "@babel/preset-env": "^7.16.11",
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-terser": "^0.1.0",
+    "@rollup/plugin-typescript": "^11.1.3",
+    "@types/jest": "^29.5.4",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.8.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-jest": "^26.1.1",
@@ -42,7 +49,10 @@
     "prettier": "^2.5.1",
     "release-it": "^16.1.3",
     "rollup": "^3.5.0",
-    "rollup-plugin-dts": "^5.0.0"
+    "rollup-plugin-delete": "^2.0.0",
+    "rollup-plugin-dts": "^6.0.2",
+    "ts-jest": "^29.1.1",
+    "tslib": "^2.6.2"
   },
   "keywords": [
     "Kinde",
@@ -57,8 +67,9 @@
     "LICENSE.md"
   ],
   "lint-staged": {
-    "**/*.{js,jsx}": [
-      "npx prettier --write ."
+    "**/*.{js,ts}": [
+      "prettier --write .",
+      "eslint --fix ."
     ]
   },
   "private": false

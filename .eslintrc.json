@@ -8,11 +8,19 @@
     "module": true,
     "jest": true
   },
-  "extends": ["plugin:jest/recommended", "eslint:recommended", "prettier"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:jest/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
   "parserOptions": {
     "ecmaVersion": 13,
     "sourceType": "module"
   },
-  "plugins": ["jest"],
-  "rules": {}
+  "plugins": ["@typescript-eslint", "jest"],
+  "root": true,
+  "rules": {
+    "@typescript-eslint/no-non-null-assertion": 0
+  }
 }

@@ -1,6 +1,7 @@
 import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
 import {
+  type JWT,
   isValidJwt,
   parseJwt,
   setupChallenge,
@@ -13,8 +14,22 @@ import {
   getFlag
 } from './utils/index';
 import {store} from './state/store';
+import type {
+  AuthOptions,
+  KindeClient,
+  KindeClientOptions,
+  KindeOrganization,
+  KindePermission,
+  KindePermissions,
+  KindeState,
+  KindeUser,
+  OrgOptions,
+  RedirectOptions
+} from './types';
 
-const createKindeClient = async (options) => {
+const createKindeClient = async (
+  options: KindeClientOptions
+): Promise<KindeClient> => {
   if (!options) {
     throw Error('Please provide your Kinde credentials');
   }
@@ -80,11 +95,11 @@ const createKindeClient = async (options) => {
     _frameworkVersion
   };
 
-  const setStore = (data) => {
+  const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
     const accessToken = parseJwt(data.access_token);
-    const idToken = parseJwt(data.id_token);
+    const idToken = parseJwt(data.id_token)! as JWT & KindeUser;
     store.setItem('kinde_token', data);
     store.setItem('kinde_access_token', accessToken);
     store.setItem('kinde_id_token', idToken);
@@ -105,8 +120,8 @@ const createKindeClient = async (options) => {
 
   const useRefreshToken = async () => {
     const refresh_token = is_dangerously_use_local_storage
-      ? localStorage.getItem('kinde_refresh_token')
-      : store.getItem('kinde_refresh_token');
+      ? (localStorage.getItem('kinde_refresh_token') as string)
+      : (store.getItem('kinde_refresh_token') as string);
 
     if (refresh_token || is_use_cookie) {
       try {
@@ -138,14 +153,14 @@ const createKindeClient = async (options) => {
   };
 
   const getToken = async () => {
-    const token = store.getItem('kinde_token');
+    const token = store.getItem('kinde_token') as KindeState;
 
     if (!token) {
       return await useRefreshToken();
     }
 
     const accessToken = store.getItem('kinde_access_token');
-    const isTokenValid = isValidJwt(accessToken);
+    const isTokenValid = isValidJwt(accessToken as JWT);
 
     if (isTokenValid) {
       return token.access_token;
@@ -160,7 +175,7 @@ const createKindeClient = async (options) => {
       return false;
     }
 
-    const isTokenValid = isValidJwt(accessToken);
+    const isTokenValid = isValidJwt(accessToken as JWT);
     if (isTokenValid) {
       return true;
     }
@@ -169,33 +184,33 @@ const createKindeClient = async (options) => {
     return true;
   };
 
-  const getPermissions = () => {
-    const orgCode = getClaimValue('org_code');
-    const permissions = getClaimValue('permissions');
+  const getPermissions = (): KindePermissions => {
+    const orgCode = getClaimValue('org_code') as string;
+    const permissions = (getClaimValue('permissions') ?? []) as string[];
     return {
       permissions,
       orgCode
     };
   };
 
-  const getPermission = (key) => {
-    const orgCode = getClaimValue('org_code');
-    const permissions = getClaimValue('permissions') || [];
+  const getPermission = (key: string): KindePermission => {
+    const orgCode = getClaimValue('org_code') as string;
+    const permissions = (getClaimValue('permissions') ?? []) as string[];
     return {
       isGranted: permissions.some((p) => p === key),
       orgCode
     };
   };
 
-  const getOrganization = () => {
-    const orgCode = getClaimValue('org_code');
+  const getOrganization = (): KindeOrganization => {
+    const orgCode = getClaimValue('org_code') as string;
     return {
       orgCode
     };
   };
 
-  const handleRedirectToApp = async (q) => {
-    const code = q.get('code');
+  const handleRedirectToApp = async (q: URLSearchParams) => {
+    const code = q.get('code')!;
     const state = q.get('state');
     const error = q.get('error');
 
@@ -234,7 +249,7 @@ const createKindeClient = async (options) => {
 
         setStore(data);
         // Remove auth code from address bar
-        const url = new URL(window.location);
+        const url = new URL(window.location.toString());
         url.search = '';
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
 
@@ -251,7 +266,7 @@ const createKindeClient = async (options) => {
     }
   };
 
-  const redirectToKinde = async (options) => {
+  const redirectToKinde = async (options: RedirectOptions) => {
     const {
       app_state,
       start_page,
@@ -265,7 +280,7 @@ const createKindeClient = async (options) => {
       app_state
     );
 
-    let searchParams = {
+    const searchParams: Record<string, string> = {
       redirect_uri,
       client_id,
       response_type: 'code',
@@ -288,29 +303,28 @@ const createKindeClient = async (options) => {
     }
 
     if (is_create_org) {
-      searchParams.is_create_org = is_create_org;
+      searchParams.is_create_org = String(is_create_org);
       searchParams.org_name = org_name;
     }
 
-    url.search = new URLSearchParams(searchParams);
-
-    window.location = url;
+    url.search = String(new URLSearchParams(searchParams));
+    window.location.href = url.toString();
   };
 
-  const register = async (options) => {
+  const register = async (options: AuthOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration'
     });
   };
 
-  const login = async (options) => {
+  const login = async (options: AuthOptions) => {
     await redirectToKinde({
       ...options
     });
   };
 
-  const createOrg = async (options) => {
+  const createOrg = async (options: OrgOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration',
@@ -318,8 +332,8 @@ const createKindeClient = async (options) => {
     });
   };
 
-  const getUser = () => {
-    return store.getItem('user');
+  const getUser = (): KindeUser => {
+    return store.getItem('user') as KindeUser;
   };
 
   const getUserProfile = async () => {
@@ -342,7 +356,7 @@ const createKindeClient = async (options) => {
         email: json.email,
         picture: json.picture
       });
-      return store.getItem('user');
+      return store.getItem('user') as KindeUser;
     } catch (err) {
       console.error(err);
     }
@@ -358,11 +372,12 @@ const createKindeClient = async (options) => {
         localStorage.removeItem('kinde_refresh_token');
       }
 
-      url.search = new URLSearchParams({
+      const searchParams = new URLSearchParams({
         redirect: logout_uri
       });
+      url.search = String(searchParams);
 
-      window.location = url;
+      window.location.href = url.toString();
     } catch (err) {
       console.error(err);
     }

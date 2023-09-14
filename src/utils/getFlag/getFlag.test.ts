@@ -28,7 +28,7 @@ describe('getFlag util', () => {
     });
   });
   const wrap = () => {
-    getFlag('competitions_limit', 3, 's');
+    getFlag('competitions_limit', '3', 's');
   };
   test('error out if incorrect type is passed', () => {
     expect(wrap).toThrow(
