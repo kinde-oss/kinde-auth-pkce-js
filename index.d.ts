@@ -70,6 +70,7 @@ export type AuthOptions = {
 
 export type KindeClient = {
   getToken: () => Promise<string | undefined>;
+  isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser>;
   login: (options: AuthOptions) => Promise<void>;
