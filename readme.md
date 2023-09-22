@@ -2,6 +2,8 @@
 
 The Kinde SDK for JavaScript.
 
+You can also use the JavaScript starter kit [here](https://github.com/kinde-starter-kits/javascript-starter-kit).
+
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com) [![Kinde Docs](https://img.shields.io/badge/Kinde-Docs-eee?style=flat-square)](https://kinde.com/docs/developer-tools/javascript-sdk) [![Kinde Community](https://img.shields.io/badge/Kinde-Community-eee?style=flat-square)](https://thekindecommunity.slack.com)
 
 ## Documentation
