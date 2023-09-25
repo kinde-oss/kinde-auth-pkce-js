@@ -24,6 +24,7 @@ export type KindeClientOptions = {
   logout_uri?: string;
   on_redirect_callback?: (user: KindeUser, appState?: object) => void;
   scope?: string;
+  enforce_redirect_uri_match?: boolean;
   _framework?: string;
   _frameworkVersion?: string;
 };

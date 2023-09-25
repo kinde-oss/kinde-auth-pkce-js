@@ -47,6 +47,7 @@ const createKindeClient = async (
     logout_uri = redirect_uri,
     on_redirect_callback,
     scope = 'openid profile email offline',
+    enforce_redirect_uri_match,
     _framework,
     _frameworkVersion
   } = options;
@@ -386,7 +387,7 @@ const createKindeClient = async (
   const init = async () => {
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
-    if (q.has('code')) {
+    if (isKindeRedirect(q)) {
       await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh
@@ -394,6 +395,17 @@ const createKindeClient = async (
         await useRefreshToken();
       }
     }
+  };
+
+  const isKindeRedirect = (searchParams: URLSearchParams) => {
+    const hasOauthCode = searchParams.has('code');
+    if (!hasOauthCode) return false;
+
+    if (!enforce_redirect_uri_match) return true;
+    // Optional check if redirect_uri match current url
+    const {protocol, host, pathname} = window.location;
+    const currentRedirectUri = `${protocol}//${host}${pathname}`;
+    return currentRedirectUri === redirect_uri;
   };
 
   await init();
