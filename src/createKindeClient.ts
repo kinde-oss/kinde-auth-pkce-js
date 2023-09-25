@@ -386,7 +386,7 @@ const createKindeClient = async (
   const init = async () => {
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
-    if (q.has('code')) {
+    if (isKindeRedirect(q)) {
       await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh
@@ -394,6 +394,17 @@ const createKindeClient = async (
         await useRefreshToken();
       }
     }
+  };
+
+  const isKindeRedirect = (searchParams: URLSearchParams) => {
+    // Check if the search params hve the code parameter
+    const hasOauthCode = searchParams.has('code');
+    if (!hasOauthCode) return false;
+
+    // Also check if redirect_uri matches current url
+    const {protocol, host, pathname} = window.location;
+    const currentRedirectUri = `${protocol}//${host}${pathname}`;
+    return currentRedirectUri === redirect_uri;
   };
 
   await init();
