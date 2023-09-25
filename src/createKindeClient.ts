@@ -1,18 +1,4 @@
-import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
-import {
-  type JWT,
-  isValidJwt,
-  parseJwt,
-  setupChallenge,
-  getClaim,
-  getClaimValue,
-  getUserOrganizations,
-  getIntegerFlag,
-  getStringFlag,
-  getBooleanFlag,
-  getFlag
-} from './utils/index';
 import {store} from './state/store';
 import type {
   AuthOptions,
@@ -26,6 +12,20 @@ import type {
   OrgOptions,
   RedirectOptions
 } from './types';
+import {
+  getBooleanFlag,
+  getClaim,
+  getClaimValue,
+  getFlag,
+  getIntegerFlag,
+  getStringFlag,
+  getUserOrganizations,
+  isValidJwt,
+  parseJwt,
+  setupChallenge,
+  type JWT
+} from './utils/index';
+import {version} from './utils/version';
 
 const createKindeClient = async (
   options: KindeClientOptions
@@ -47,7 +47,6 @@ const createKindeClient = async (
     logout_uri = redirect_uri,
     on_redirect_callback,
     scope = 'openid profile email offline',
-    enforce_redirect_uri_match,
     _framework,
     _frameworkVersion
   } = options;
@@ -398,11 +397,11 @@ const createKindeClient = async (
   };
 
   const isKindeRedirect = (searchParams: URLSearchParams) => {
+    // Check if the search params hve the code parameter
     const hasOauthCode = searchParams.has('code');
     if (!hasOauthCode) return false;
 
-    if (!enforce_redirect_uri_match) return true;
-    // Optional check if redirect_uri match current url
+    // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
     const currentRedirectUri = `${protocol}//${host}${pathname}`;
     return currentRedirectUri === redirect_uri;
