@@ -1,4 +1,18 @@
+import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
+import {
+  type JWT,
+  isValidJwt,
+  parseJwt,
+  setupChallenge,
+  getClaim,
+  getClaimValue,
+  getUserOrganizations,
+  getIntegerFlag,
+  getStringFlag,
+  getBooleanFlag,
+  getFlag
+} from './utils/index';
 import {store} from './state/store';
 import type {
   AuthOptions,
@@ -12,20 +26,6 @@ import type {
   OrgOptions,
   RedirectOptions
 } from './types';
-import {
-  getBooleanFlag,
-  getClaim,
-  getClaimValue,
-  getFlag,
-  getIntegerFlag,
-  getStringFlag,
-  getUserOrganizations,
-  isValidJwt,
-  parseJwt,
-  setupChallenge,
-  type JWT
-} from './utils/index';
-import {version} from './utils/version';
 
 const createKindeClient = async (
   options: KindeClientOptions
