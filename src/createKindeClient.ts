@@ -400,11 +400,14 @@ const createKindeClient = async (
     // Check if the search params hve the code parameter
     const hasOauthCode = searchParams.has('code');
     if (!hasOauthCode) return false;
-
     // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
     const currentRedirectUri = `${protocol}//${host}${pathname}`;
-    return currentRedirectUri === redirect_uri;
+
+    return (
+      currentRedirectUri === redirect_uri ||
+      currentRedirectUri === `${redirect_uri}/`
+    );
   };
 
   await init();
