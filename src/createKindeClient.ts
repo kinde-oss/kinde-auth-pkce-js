@@ -272,9 +272,9 @@ const createKindeClient = async (
       start_page,
       is_create_org,
       org_name = '',
-      org_code
+      org_code,
+      authUrlParams = {}
     } = options;
-
     const {state, code_challenge, url} = await setupChallenge(
       config.authorization_endpoint,
       app_state
@@ -307,7 +307,9 @@ const createKindeClient = async (
       searchParams.org_name = org_name;
     }
 
-    url.search = String(new URLSearchParams(searchParams));
+    url.search = String(
+      new URLSearchParams(Object.assign(authUrlParams, searchParams))
+    );
     window.location.href = url.toString();
   };
 
