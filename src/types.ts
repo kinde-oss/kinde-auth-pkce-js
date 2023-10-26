@@ -20,7 +20,6 @@ export type KindeClientOptions = {
   client_id?: string;
   redirect_uri: string;
   domain: string;
-  authUrlParams: object;
   is_dangerously_use_local_storage?: boolean;
   logout_uri?: string;
   on_redirect_callback?: (user: KindeUser, appState?: object) => void;
@@ -85,13 +84,13 @@ export type OrgOptions = {
 export type AuthOptions = {
   org_code?: string;
   app_state?: object;
+  authUrlParams?: object;
 };
 
 export type RedirectOptions = OrgOptions &
   AuthOptions & {
     start_page?: string;
     is_create_org?: boolean;
-    authUrlParams?: object;
   };
 
 export type KindeClient = {
