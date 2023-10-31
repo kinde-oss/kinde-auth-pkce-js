@@ -17,7 +17,9 @@
     "lint": "eslint --ignore-path .eslintignore --ext .js,.ts .",
     "lint:fix": "npm run lint -- --fix",
     "prettier": "prettier -c .",
-    "prettier:write": "prettier -w ."
+    "prettier:write": "prettier -w .",
+    "dev:prepare": "git clone https://github.com/kinde-starter-kits/javascript-starter-kit playground && npm link && cd playground && mv .env.example .env && npm uninstall @kinde-oss/kinde-auth-pkce-js && rm -rf .git && npm link @kinde-oss/kinde-auth-pkce-js",
+    "dev": "cd playground && npm run dev"
   },
   "author": {
     "name": "Kinde",
