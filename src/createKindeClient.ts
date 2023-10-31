@@ -1,9 +1,9 @@
 import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
+import {jwtDecode} from 'jwt-decode';
 import {
   type JWT,
   isValidJwt,
-  parseJwt,
   setupChallenge,
   getClaim,
   getClaimValue,
@@ -98,8 +98,8 @@ const createKindeClient = async (
   const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
-    const accessToken = parseJwt(data.access_token);
-    const idToken = parseJwt(data.id_token)! as JWT & KindeUser;
+    const accessToken = jwtDecode(data.access_token);
+    const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
     store.setItem('kinde_token', data);
     store.setItem('kinde_access_token', accessToken);
     store.setItem('kinde_id_token', idToken);

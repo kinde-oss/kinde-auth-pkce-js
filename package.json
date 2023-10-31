@@ -74,5 +74,8 @@
       "eslint --fix ."
     ]
   },
-  "private": false
+  "private": false,
+  "dependencies": {
+    "jwt-decode": "^4.0.0"
+  }
 }
