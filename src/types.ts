@@ -98,10 +98,10 @@ export type KindeClient = {
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
-  login: (options: AuthOptions) => Promise<void>;
+  login: (options?: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
-  register: (options: AuthOptions) => Promise<void>;
-  createOrg: (options: OrgOptions) => Promise<void>;
+  register: (options?: AuthOptions) => Promise<void>;
+  createOrg: (options?: OrgOptions) => Promise<void>;
   getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
   getFlag: <T extends KindeFlagTypeCode>(
     code: string,
