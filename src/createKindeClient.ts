@@ -47,6 +47,7 @@ const createKindeClient = async (
     logout_uri = redirect_uri,
     on_redirect_callback,
     scope = 'openid profile email offline',
+    proxy_redirect_uri,
     _framework,
     _frameworkVersion
   } = options;
@@ -404,7 +405,9 @@ const createKindeClient = async (
     if (!hasOauthCode) return false;
     // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
-    const currentRedirectUri = `${protocol}//${host}${pathname}`;
+
+    const currentRedirectUri =
+      proxy_redirect_uri || `${protocol}//${host}${pathname}`;
 
     return (
       currentRedirectUri === redirect_uri ||
