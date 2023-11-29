@@ -119,7 +119,9 @@ const createKindeClient = async (
     }
   };
 
-  const useRefreshToken = async () => {
+  const useRefreshToken = async (
+    {tokenType} = {tokenType: 'kinde_access_token'}
+  ) => {
     const refresh_token = is_dangerously_use_local_storage
       ? (localStorage.getItem('kinde_refresh_token') as string)
       : (store.getItem('kinde_refresh_token') as string);
@@ -146,6 +148,10 @@ const createKindeClient = async (
         const data = await response.json();
         setStore(data);
 
+        if (tokenType === 'kinde_id_token') {
+          return data.id_token;
+        }
+
         return data.access_token;
       } catch (err) {
         console.error(err);
@@ -153,21 +159,29 @@ const createKindeClient = async (
     }
   };
 
-  const getToken = async () => {
+  const getTokenType = async (tokenType: string) => {
     const token = store.getItem('kinde_token') as KindeState;
 
     if (!token) {
-      return await useRefreshToken();
+      return await useRefreshToken({tokenType});
     }
 
-    const accessToken = store.getItem('kinde_access_token');
-    const isTokenValid = isValidJwt(accessToken as JWT);
+    const tokenToReturn = store.getItem(tokenType);
+    const isTokenValid = isValidJwt(tokenToReturn as JWT);
 
     if (isTokenValid) {
-      return token.access_token;
+      return tokenToReturn;
     } else {
-      return await useRefreshToken();
+      return await useRefreshToken({tokenType});
     }
+  };
+
+  const getToken = async () => {
+    return await getTokenType('kinde_access_token');
+  };
+
+  const getIdToken = async () => {
+    return await getTokenType('kinde_id_token');
   };
 
   const isAuthenticated = async () => {
@@ -419,6 +433,7 @@ const createKindeClient = async (
 
   return {
     getToken,
+    getIdToken,
     getUser,
     getUserProfile,
     login,
