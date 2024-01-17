@@ -295,10 +295,6 @@ const createKindeClient = async (
       searchParams.start_page = start_page;
     }
 
-    if (audience) {
-      searchParams.audience = audience;
-    }
-
     if (org_code) {
       searchParams.org_code = org_code;
     }
@@ -308,9 +304,21 @@ const createKindeClient = async (
       searchParams.org_name = org_name;
     }
 
-    url.search = String(
-      new URLSearchParams(Object.assign(authUrlParams, searchParams))
+    const urlSearchParams = new URLSearchParams(
+      Object.assign(authUrlParams, searchParams)
     );
+
+    if (audience) {
+      /* if multiple audiences requested it should appear multiple times in the query string */
+      audience
+        .trim()
+        .split(/\s+/)
+        .forEach((aud) => {
+          urlSearchParams.append('audience', aud);
+        });
+    }
+    url.search = String(urlSearchParams);
+
     window.location.href = url.toString();
   };
 
