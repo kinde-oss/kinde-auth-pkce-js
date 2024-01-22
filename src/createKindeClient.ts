@@ -170,7 +170,9 @@ const createKindeClient = async (
     const isTokenValid = isValidJwt(tokenToReturn as JWT);
 
     if (isTokenValid) {
-      return tokenToReturn;
+      return tokenType === 'kinde_access_token'
+        ? token.access_token
+        : token.id_token;
     } else {
       return await useRefreshToken({tokenType});
     }
