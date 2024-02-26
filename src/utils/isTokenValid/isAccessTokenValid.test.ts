@@ -101,6 +101,18 @@ describe('isIDToken valid', () => {
     }).toThrow(`(aud) claim must be an array`);
   });
 
+  test('Still pass if aud is undefined', () => {
+    expect(
+      isTokenValid(
+        {
+          header,
+          payload: {...accessTokenStub}
+        },
+        {...config, aud: undefined}
+      )
+    ).toBe(true);
+  });
+
   test('Throw error with incorrect aud', () => {
     expect(() => {
       isTokenValid(

@@ -101,9 +101,9 @@ const createKindeClient = async (
   const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
-    const accessToken = jwtDecode(data.access_token);
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
     const idTokenHeader = jwtDecode(data.id_token, {header: true});
+    const accessToken = jwtDecode(data.access_token);
     const accessTokenHeader = jwtDecode(data.access_token, {header: true});
 
     const validatorOptions = {
@@ -116,7 +116,7 @@ const createKindeClient = async (
         payload: idToken,
         header: idTokenHeader
       },
-      validatorOptions
+      {...validatorOptions, aud: clientId}
     );
     const isAccessValid = isTokenValid(
       {

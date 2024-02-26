@@ -24,16 +24,18 @@ const isTokenValid = (token: any, config: any) => {
     );
   }
 
-  if (!Array.isArray(token.payload.aud)) {
-    throw new Error('(aud) claim must be an array');
-  }
+  if (config.aud) {
+    if (!Array.isArray(token.payload.aud)) {
+      throw new Error('(aud) claim must be an array');
+    }
 
-  if (!token.payload.aud.includes(config.aud)) {
-    throw new Error(
-      `(aud) claim mismatch. Expected: "${
-        config.aud
-      }", Received: "${token.payload.aud.join(', ')}"`
-    );
+    if (!token.payload.aud.includes(config.aud)) {
+      throw new Error(
+        `(aud) claim mismatch. Expected: "${
+          config.aud
+        }", Received: "${token.payload.aud.join(', ')}"`
+      );
+    }
   }
 
   const isJWTExpired = !isJWTActive(token.payload);
