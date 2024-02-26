@@ -1,9 +1,10 @@
 import {version} from './utils/version';
 import {SESSION_PREFIX} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
+
 import {
   type JWT,
-  isValidJwt,
+  isJWTActive,
   setupChallenge,
   getClaim,
   getClaimValue,
@@ -11,7 +12,8 @@ import {
   getIntegerFlag,
   getStringFlag,
   getBooleanFlag,
-  getFlag
+  getFlag,
+  isTokenValid
 } from './utils/index';
 import {store} from './state/store';
 import type {
@@ -101,21 +103,46 @@ const createKindeClient = async (
 
     const accessToken = jwtDecode(data.access_token);
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
-    store.setItem('kinde_token', data);
-    store.setItem('kinde_access_token', accessToken);
-    store.setItem('kinde_id_token', idToken);
-    store.setItem('user', {
-      id: idToken.sub,
-      given_name: idToken.given_name,
-      family_name: idToken.family_name,
-      email: idToken.email,
-      picture: idToken.picture
-    });
+    const idTokenHeader = jwtDecode(data.id_token, {header: true});
+    const accessTokenHeader = jwtDecode(data.access_token, {header: true});
 
-    if (is_dangerously_use_local_storage) {
-      localStorage.setItem('kinde_refresh_token', data.refresh_token);
-    } else {
-      store.setItem('kinde_refresh_token', data.refresh_token);
+    const validatorOptions = {
+      iss: domain,
+      azp: clientId,
+      aud: audience
+    };
+    const isIDValid = isTokenValid(
+      {
+        payload: idToken,
+        header: idTokenHeader
+      },
+      validatorOptions
+    );
+    const isAccessValid = isTokenValid(
+      {
+        payload: accessToken,
+        header: accessTokenHeader
+      },
+      validatorOptions
+    );
+
+    if (isIDValid && isAccessValid) {
+      store.setItem('kinde_token', data);
+      store.setItem('kinde_access_token', accessToken);
+      store.setItem('kinde_id_token', idToken);
+      store.setItem('user', {
+        id: idToken.sub,
+        given_name: idToken.given_name,
+        family_name: idToken.family_name,
+        email: idToken.email,
+        picture: idToken.picture
+      });
+
+      if (is_dangerously_use_local_storage) {
+        localStorage.setItem('kinde_refresh_token', data.refresh_token);
+      } else {
+        store.setItem('kinde_refresh_token', data.refresh_token);
+      }
     }
   };
 
@@ -167,9 +194,9 @@ const createKindeClient = async (
     }
 
     const tokenToReturn = store.getItem(tokenType);
-    const isTokenValid = isValidJwt(tokenToReturn as JWT);
+    const isTokenActive = isJWTActive(tokenToReturn as JWT);
 
-    if (isTokenValid) {
+    if (isTokenActive) {
       return tokenType === 'kinde_access_token'
         ? token.access_token
         : token.id_token;
@@ -192,8 +219,8 @@ const createKindeClient = async (
       return false;
     }
 
-    const isTokenValid = isValidJwt(accessToken as JWT);
-    if (isTokenValid) {
+    const isTokenActive = isJWTActive(accessToken as JWT);
+    if (isTokenActive) {
       return true;
     }
 
