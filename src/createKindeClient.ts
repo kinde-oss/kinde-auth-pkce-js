@@ -27,6 +27,12 @@ import type {
   RedirectOptions
 } from './types';
 
+const isCustomDomain = (url: string) => {
+  const domain = new URL(url);
+  const bareDomain = domain.hostname.split('.').slice(-2).join('.');
+  return bareDomain !== 'kinde.com';
+};
+
 const createKindeClient = async (
   options: KindeClientOptions
 ): Promise<KindeClient> => {
@@ -84,11 +90,11 @@ const createKindeClient = async (
   const isDevelopment =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
-  //   Indicates using a custom domain on a production environment
+  // Indicates using a custom domain on a production environment
   const isUseCookie =
     !isDevelopment &&
     !is_dangerously_use_local_storage &&
-    !domain.includes('.kinde.com');
+    isCustomDomain(domain);
 
   const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
 
