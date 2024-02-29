@@ -346,20 +346,20 @@ const createKindeClient = async (
     window.location.href = url.toString();
   };
 
-  const register = async (options: AuthOptions) => {
+  const register = async (options?: AuthOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration'
     });
   };
 
-  const login = async (options: AuthOptions) => {
+  const login = async (options?: AuthOptions) => {
     await redirectToKinde({
       ...options
     });
   };
 
-  const createOrg = async (options: OrgOptions) => {
+  const createOrg = async (options?: OrgOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration',
