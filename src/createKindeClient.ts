@@ -1,5 +1,5 @@
 import {version} from './utils/version';
-import {SESSION_PREFIX} from './constants/index';
+import {SESSION_PREFIX, storageMap} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
 
 import {
@@ -127,10 +127,10 @@ const createKindeClient = async (
     );
 
     if (isIDValid && isAccessValid) {
-      store.setItem('kinde_token', data);
-      store.setItem('kinde_access_token', accessToken);
-      store.setItem('kinde_id_token', idToken);
-      store.setItem('user', {
+      store.setItem(storageMap.token_bundle, data);
+      store.setItem(storageMap.access_token, accessToken);
+      store.setItem(storageMap.id_token, idToken);
+      store.setItem(storageMap.user, {
         id: idToken.sub,
         given_name: idToken.given_name,
         family_name: idToken.family_name,
@@ -139,19 +139,19 @@ const createKindeClient = async (
       });
 
       if (is_dangerously_use_local_storage) {
-        localStorage.setItem('kinde_refresh_token', data.refresh_token);
+        localStorage.setItem(storageMap.refresh_token, data.refresh_token);
       } else {
-        store.setItem('kinde_refresh_token', data.refresh_token);
+        store.setItem(storageMap.refresh_token, data.refresh_token);
       }
     }
   };
 
   const useRefreshToken = async (
-    {tokenType} = {tokenType: 'kinde_access_token'}
+    {tokenType} = {tokenType: storageMap.access_token}
   ) => {
     const refresh_token = is_dangerously_use_local_storage
-      ? (localStorage.getItem('kinde_refresh_token') as string)
-      : (store.getItem('kinde_refresh_token') as string);
+      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
 
     if (refresh_token || is_use_cookie) {
       try {
@@ -175,7 +175,7 @@ const createKindeClient = async (
         const data = await response.json();
         setStore(data);
 
-        if (tokenType === 'kinde_id_token') {
+        if (tokenType === storageMap.id_token) {
           return data.id_token;
         }
 
@@ -186,8 +186,8 @@ const createKindeClient = async (
     }
   };
 
-  const getTokenType = async (tokenType: string) => {
-    const token = store.getItem('kinde_token') as KindeState;
+  const getTokenType = async (tokenType: storageMap) => {
+    const token = store.getItem(storageMap.token_bundle) as KindeState;
 
     if (!token) {
       return await useRefreshToken({tokenType});
@@ -197,7 +197,7 @@ const createKindeClient = async (
     const isTokenActive = isJWTActive(tokenToReturn as JWT);
 
     if (isTokenActive) {
-      return tokenType === 'kinde_access_token'
+      return tokenType === storageMap.access_token
         ? token.access_token
         : token.id_token;
     } else {
@@ -206,15 +206,15 @@ const createKindeClient = async (
   };
 
   const getToken = async () => {
-    return await getTokenType('kinde_access_token');
+    return await getTokenType(storageMap.access_token);
   };
 
   const getIdToken = async () => {
-    return await getTokenType('kinde_id_token');
+    return await getTokenType(storageMap.id_token);
   };
 
   const isAuthenticated = async () => {
-    const accessToken = store.getItem('kinde_access_token');
+    const accessToken = store.getItem(storageMap.access_token);
     if (!accessToken) {
       return false;
     }
@@ -387,7 +387,7 @@ const createKindeClient = async (
   };
 
   const getUser = (): KindeUser => {
-    return store.getItem('user') as KindeUser;
+    return store.getItem(storageMap.user) as KindeUser;
   };
 
   const getUserProfile = async () => {
@@ -403,14 +403,14 @@ const createKindeClient = async (
         headers: headers
       });
       const json = await res.json();
-      store.setItem('user', {
+      store.setItem(storageMap.user, {
         id: json.sub,
         given_name: json.given_name,
         family_name: json.family_name,
         email: json.email,
         picture: json.picture
       });
-      return store.getItem('user') as KindeUser;
+      return store.getItem(storageMap.user) as KindeUser;
     } catch (err) {
       console.error(err);
     }
@@ -423,7 +423,7 @@ const createKindeClient = async (
       store.reset();
 
       if (is_dangerously_use_local_storage) {
-        localStorage.removeItem('kinde_refresh_token');
+        localStorage.removeItem(storageMap.refresh_token);
       }
 
       const searchParams = new URLSearchParams({
