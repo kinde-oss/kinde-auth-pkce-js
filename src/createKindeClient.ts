@@ -11,7 +11,8 @@ import {
   getIntegerFlag,
   getStringFlag,
   getBooleanFlag,
-  getFlag
+  getFlag,
+  isCustomDomain
 } from './utils/index';
 import {store} from './state/store';
 import type {
@@ -26,12 +27,6 @@ import type {
   OrgOptions,
   RedirectOptions
 } from './types';
-
-const isCustomDomain = (url: string) => {
-  const domain = new URL(url);
-  const bareDomain = domain.hostname.split('.').slice(-2).join('.');
-  return bareDomain !== 'kinde.com';
-};
 
 const createKindeClient = async (
   options: KindeClientOptions

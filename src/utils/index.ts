@@ -9,6 +9,6 @@ export {getBooleanFlag} from './getBooleanFlag/getBooleanFlag';
 export {getIntegerFlag} from './getIntegerFlag/getIntegerFlag';
 export {getStringFlag} from './getStringFlag/getStringFlag';
 export {getUserOrganizations} from './getUserOrganizations/getUserOrganizations';
-
+export {isCustomDomain} from './isCustomDomain/isCustomDomain';
 export * from './isValidJwt/isValidJwt.types';
 export * from './getFlag/getFlag.types';
