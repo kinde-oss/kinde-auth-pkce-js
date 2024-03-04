@@ -1,9 +1,10 @@
 import {version} from './utils/version';
-import {SESSION_PREFIX} from './constants/index';
+import {SESSION_PREFIX, storageMap} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
+
 import {
   type JWT,
-  isValidJwt,
+  isJWTActive,
   setupChallenge,
   getClaim,
   getClaimValue,
@@ -12,6 +13,7 @@ import {
   getStringFlag,
   getBooleanFlag,
   getFlag,
+  isTokenValid,
   isCustomDomain
 } from './utils/index';
 import {store} from './state/store';
@@ -108,32 +110,57 @@ const createKindeClient = async (
   const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
-    const accessToken = jwtDecode(data.access_token);
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
-    store.setItem('kinde_token', data);
-    store.setItem('kinde_access_token', accessToken);
-    store.setItem('kinde_id_token', idToken);
-    store.setItem('user', {
-      id: idToken.sub,
-      given_name: idToken.given_name,
-      family_name: idToken.family_name,
-      email: idToken.email,
-      picture: idToken.picture
-    });
+    const idTokenHeader = jwtDecode(data.id_token, {header: true});
+    const accessToken = jwtDecode(data.access_token);
+    const accessTokenHeader = jwtDecode(data.access_token, {header: true});
 
-    if (isUseLocalStorage) {
-      localStorage.setItem('kinde_refresh_token', data.refresh_token);
-    } else {
-      store.setItem('kinde_refresh_token', data.refresh_token);
+    const validatorOptions = {
+      iss: domain,
+      azp: clientId,
+      aud: audience
+    };
+    const isIDValid = isTokenValid(
+      {
+        payload: idToken,
+        header: idTokenHeader
+      },
+      {...validatorOptions, aud: clientId}
+    );
+    const isAccessValid = isTokenValid(
+      {
+        payload: accessToken,
+        header: accessTokenHeader
+      },
+      validatorOptions
+    );
+
+    if (isIDValid && isAccessValid) {
+      store.setItem(storageMap.token_bundle, data);
+      store.setItem(storageMap.access_token, accessToken);
+      store.setItem(storageMap.id_token, idToken);
+      store.setItem(storageMap.user, {
+        id: idToken.sub,
+        given_name: idToken.given_name,
+        family_name: idToken.family_name,
+        email: idToken.email,
+        picture: idToken.picture
+      });
+
+      if (isUseLocalStorage) {
+        localStorage.setItem(storageMap.refresh_token, data.refresh_token);
+      } else {
+        store.setItem(storageMap.refresh_token, data.refresh_token);
+      }
     }
   };
 
   const useRefreshToken = async (
-    {tokenType} = {tokenType: 'kinde_access_token'}
+    {tokenType} = {tokenType: storageMap.access_token}
   ) => {
     const refresh_token = isUseLocalStorage
-      ? (localStorage.getItem('kinde_refresh_token') as string)
-      : (store.getItem('kinde_refresh_token') as string);
+      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
 
     if (refresh_token || isUseCookie) {
       try {
@@ -157,7 +184,7 @@ const createKindeClient = async (
         const data = await response.json();
         setStore(data);
 
-        if (tokenType === 'kinde_id_token') {
+        if (tokenType === storageMap.id_token) {
           return data.id_token;
         }
 
@@ -168,18 +195,18 @@ const createKindeClient = async (
     }
   };
 
-  const getTokenType = async (tokenType: string) => {
-    const token = store.getItem('kinde_token') as KindeState;
+  const getTokenType = async (tokenType: storageMap) => {
+    const token = store.getItem(storageMap.token_bundle) as KindeState;
 
     if (!token) {
       return await useRefreshToken({tokenType});
     }
 
     const tokenToReturn = store.getItem(tokenType);
-    const isTokenValid = isValidJwt(tokenToReturn as JWT);
+    const isTokenActive = isJWTActive(tokenToReturn as JWT);
 
-    if (isTokenValid) {
-      return tokenType === 'kinde_access_token'
+    if (isTokenActive) {
+      return tokenType === storageMap.access_token
         ? token.access_token
         : token.id_token;
     } else {
@@ -188,21 +215,21 @@ const createKindeClient = async (
   };
 
   const getToken = async () => {
-    return await getTokenType('kinde_access_token');
+    return await getTokenType(storageMap.access_token);
   };
 
   const getIdToken = async () => {
-    return await getTokenType('kinde_id_token');
+    return await getTokenType(storageMap.id_token);
   };
 
   const isAuthenticated = async () => {
-    const accessToken = store.getItem('kinde_access_token');
+    const accessToken = store.getItem(storageMap.access_token);
     if (!accessToken) {
       return false;
     }
 
-    const isTokenValid = isValidJwt(accessToken as JWT);
-    if (isTokenValid) {
+    const isTokenActive = isJWTActive(accessToken as JWT);
+    if (isTokenActive) {
       return true;
     }
 
@@ -369,7 +396,7 @@ const createKindeClient = async (
   };
 
   const getUser = (): KindeUser => {
-    return store.getItem('user') as KindeUser;
+    return store.getItem(storageMap.user) as KindeUser;
   };
 
   const getUserProfile = async () => {
@@ -385,14 +412,14 @@ const createKindeClient = async (
         headers: headers
       });
       const json = await res.json();
-      store.setItem('user', {
+      store.setItem(storageMap.user, {
         id: json.sub,
         given_name: json.given_name,
         family_name: json.family_name,
         email: json.email,
         picture: json.picture
       });
-      return store.getItem('user') as KindeUser;
+      return store.getItem(storageMap.user) as KindeUser;
     } catch (err) {
       console.error(err);
     }
@@ -405,7 +432,7 @@ const createKindeClient = async (
       store.reset();
 
       if (isUseLocalStorage) {
-        localStorage.removeItem('kinde_refresh_token');
+        localStorage.removeItem(storageMap.refresh_token);
       }
 
       const searchParams = new URLSearchParams({

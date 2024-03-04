@@ -1,6 +1,6 @@
 export {pkceChallengeFromVerifier} from './pkceChallengeFromVerifier/pkceChallengeFromVerifier';
 export {randomString} from './randomString/randomString';
-export {isValidJwt} from './isValidJwt/isValidJwt';
+export {isJWTActive} from './isJWTActive/isJWTActive';
 export {setupChallenge} from './setupChallenge/setupChallenge';
 export {getClaim} from './getClaim/getClaim';
 export {getClaimValue} from './getClaimValue/getClaimValue';
@@ -9,6 +9,7 @@ export {getBooleanFlag} from './getBooleanFlag/getBooleanFlag';
 export {getIntegerFlag} from './getIntegerFlag/getIntegerFlag';
 export {getStringFlag} from './getStringFlag/getStringFlag';
 export {getUserOrganizations} from './getUserOrganizations/getUserOrganizations';
+export {isTokenValid} from './isTokenValid/isTokenValid';
 export {isCustomDomain} from './isCustomDomain/isCustomDomain';
-export * from './isValidJwt/isValidJwt.types';
+export * from './isJWTActive/isJWTActive.types';
 export * from './getFlag/getFlag.types';

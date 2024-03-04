@@ -4,7 +4,7 @@ const idTokenStub = {
   auth_time: 1683693508,
   azp: '123456789',
   email: 'jaime@lannister.com',
-  exp: 1683697108,
+  exp: 1772323199,
   family_name: 'Lannister',
   given_name: 'Jaime',
   iat: 1683693508,

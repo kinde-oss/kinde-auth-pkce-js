@@ -1,7 +1,7 @@
 const accessTokenStub = {
   aud: ['stake:prod-api'],
   azp: '1234567890',
-  exp: 1683779908,
+  exp: 1772323199,
   feature_flags: {
     theme: {
       t: 's',
