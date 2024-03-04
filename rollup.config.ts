@@ -1,5 +1,6 @@
 import {createRequire} from 'node:module';
 import {defineConfig} from 'rollup';
+import resolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 
@@ -20,5 +21,5 @@ export default defineConfig({
       format: 'es'
     }
   ],
-  plugins: [typescript()]
+  plugins: [resolve(), typescript()]
 });
