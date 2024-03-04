@@ -11,7 +11,8 @@ import {
   getIntegerFlag,
   getStringFlag,
   getBooleanFlag,
-  getFlag
+  getFlag,
+  isCustomDomain
 } from './utils/index';
 import {store} from './state/store';
 import type {
@@ -80,9 +81,17 @@ const createKindeClient = async (
 
   const client_id = clientId || 'spa@live';
 
-  //   Indicates using a custom domain on a production environment
-  const is_use_cookie =
-    !is_dangerously_use_local_storage && !domain.includes('.kinde.com');
+  // If code is running on localhost, it's a development environment
+  const isDevelopment =
+    location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+  // Indicates using a custom domain on a production environment
+  const isUseCookie =
+    !isDevelopment &&
+    !is_dangerously_use_local_storage &&
+    isCustomDomain(domain);
+
+  const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
 
   const config = {
     audience,
@@ -112,7 +121,7 @@ const createKindeClient = async (
       picture: idToken.picture
     });
 
-    if (is_dangerously_use_local_storage) {
+    if (isUseLocalStorage) {
       localStorage.setItem('kinde_refresh_token', data.refresh_token);
     } else {
       store.setItem('kinde_refresh_token', data.refresh_token);
@@ -122,15 +131,15 @@ const createKindeClient = async (
   const useRefreshToken = async (
     {tokenType} = {tokenType: 'kinde_access_token'}
   ) => {
-    const refresh_token = is_dangerously_use_local_storage
+    const refresh_token = isUseLocalStorage
       ? (localStorage.getItem('kinde_refresh_token') as string)
       : (store.getItem('kinde_refresh_token') as string);
 
-    if (refresh_token || is_use_cookie) {
+    if (refresh_token || isUseCookie) {
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
-          ...(is_use_cookie && {credentials: 'include'}),
+          ...(isUseCookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Kinde-SDK': `
@@ -141,7 +150,7 @@ const createKindeClient = async (
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
-            ...(!is_use_cookie && refresh_token && {refresh_token})
+            ...(!isUseCookie && refresh_token && {refresh_token})
           })
         });
 
@@ -246,7 +255,7 @@ const createKindeClient = async (
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
-          ...(is_use_cookie && {credentials: 'include'}),
+          ...(isUseCookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Kinde-SDK': `${config._framework || 'JavaScript'}/${
@@ -338,20 +347,20 @@ const createKindeClient = async (
     window.location.href = url.toString();
   };
 
-  const register = async (options: AuthOptions) => {
+  const register = async (options?: AuthOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration'
     });
   };
 
-  const login = async (options: AuthOptions) => {
+  const login = async (options?: AuthOptions) => {
     await redirectToKinde({
       ...options
     });
   };
 
-  const createOrg = async (options: OrgOptions) => {
+  const createOrg = async (options?: OrgOptions) => {
     await redirectToKinde({
       ...options,
       start_page: 'registration',
@@ -395,7 +404,7 @@ const createKindeClient = async (
     try {
       store.reset();
 
-      if (is_dangerously_use_local_storage) {
+      if (isUseLocalStorage) {
         localStorage.removeItem('kinde_refresh_token');
       }
 
@@ -417,7 +426,7 @@ const createKindeClient = async (
       await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh
-      if (is_use_cookie || is_dangerously_use_local_storage) {
+      if (isUseCookie || isUseLocalStorage) {
         await useRefreshToken();
       }
     }

@@ -36,6 +36,7 @@
   "devDependencies": {
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.1.0",
     "@rollup/plugin-typescript": "^11.1.3",
     "@types/jest": "^29.5.4",
