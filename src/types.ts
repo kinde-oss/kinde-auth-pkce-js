@@ -90,7 +90,7 @@ export type AuthOptions = {
 
 export type RedirectOptions = OrgOptions &
   AuthOptions & {
-    start_page?: string;
+    prompt?: string;
     is_create_org?: boolean;
   };
 
