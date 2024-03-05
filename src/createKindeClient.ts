@@ -322,7 +322,7 @@ const createKindeClient = async (
   const redirectToKinde = async (options: RedirectOptions) => {
     const {
       app_state,
-      start_page,
+      prompt,
       is_create_org,
       org_name = '',
       org_code,
@@ -343,8 +343,8 @@ const createKindeClient = async (
       state
     };
 
-    if (start_page) {
-      searchParams.start_page = start_page;
+    if (prompt) {
+      searchParams.prompt = prompt;
     }
 
     if (org_code) {
@@ -377,7 +377,7 @@ const createKindeClient = async (
   const register = async (options?: AuthOptions) => {
     await redirectToKinde({
       ...options,
-      start_page: 'registration'
+      prompt: 'create'
     });
   };
 
@@ -390,7 +390,7 @@ const createKindeClient = async (
   const createOrg = async (options?: OrgOptions) => {
     await redirectToKinde({
       ...options,
-      start_page: 'registration',
+      prompt: 'create',
       is_create_org: true
     });
   };
