@@ -1,6 +1,6 @@
 {
   "name": "@kinde-oss/kinde-auth-pkce-js",
-  "version": "3.0.32",
+  "version": "3.1.0",
   "description": "Kinde PKCE authentication for SPAs",
   "module": "dist/kinde-auth-pkce-js.esm.js",
   "main": "dist/kinde-auth-pkce-js.umd.min.js",
