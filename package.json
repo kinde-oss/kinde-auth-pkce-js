@@ -5,7 +5,18 @@
   "module": "dist/kinde-auth-pkce-js.esm.js",
   "main": "dist/kinde-auth-pkce-js.umd.min.js",
   "types": "dist/index.d.ts",
-  "type": "module",
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/kinde-auth-pkce-js.umd.min.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/kinde-auth-pkce-js.esm.js"
+      }
+    }
+  },
   "scripts": {
     "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
     "rollup:types": "rollup --config rollup.types.config.ts --configPlugin @rollup/plugin-typescript",
