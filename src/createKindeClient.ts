@@ -28,7 +28,7 @@ import type {
   KindeUser,
   OrgOptions,
   RedirectOptions,
-  ErrorProps
+  ErrorProps,
   GetTokenOptions
 } from './types';
 
@@ -220,11 +220,11 @@ const createKindeClient = async (
     }
   };
 
-  const getToken = async (options: GetTokenOptions) => {
+  const getToken = async (options: GetTokenOptions = {}) => {
     return await getTokenType(storageMap.access_token, options);
   };
 
-  const getIdToken = async (options: GetTokenOptions) => {
+  const getIdToken = async (options: GetTokenOptions = {}) => {
     return await getTokenType(storageMap.id_token, options);
   };
 
