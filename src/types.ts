@@ -15,6 +15,13 @@ export type KindeState = {
   token_type: string;
 };
 
+export type ErrorProps = {
+  error: string;
+  errorDescription: string;
+  state: string;
+  appState: Record<string, unknown>;
+};
+
 export type KindeClientOptions = {
   audience?: string;
   client_id?: string;
@@ -22,7 +29,11 @@ export type KindeClientOptions = {
   domain: string;
   is_dangerously_use_local_storage?: boolean;
   logout_uri?: string;
-  on_redirect_callback?: (user: KindeUser, appState?: object) => void;
+  on_error_callback?: (props: ErrorProps) => void;
+  on_redirect_callback?: (
+    user: KindeUser,
+    appState?: Record<string, unknown>
+  ) => void;
   scope?: string;
   proxy_redirect_uri?: string;
   _framework?: string;
@@ -79,12 +90,12 @@ export type KindeOrganizations = {
 
 export type OrgOptions = {
   org_name?: string;
-  app_state?: object;
+  app_state?: Record<string, unknown>;
 };
 
 export type AuthOptions = {
   org_code?: string;
-  app_state?: object;
+  app_state?: Record<string, unknown>;
   authUrlParams?: object;
 };
 
