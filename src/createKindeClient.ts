@@ -27,7 +27,8 @@ import type {
   KindeState,
   KindeUser,
   OrgOptions,
-  RedirectOptions
+  RedirectOptions,
+  GetTokenOptions
 } from './types';
 
 const createKindeClient = async (
@@ -195,10 +196,13 @@ const createKindeClient = async (
     }
   };
 
-  const getTokenType = async (tokenType: storageMap) => {
+  const getTokenType = async (
+    tokenType: storageMap,
+    options: GetTokenOptions
+  ) => {
     const token = store.getItem(storageMap.token_bundle) as KindeState;
 
-    if (!token) {
+    if (!token || options.isForceRefresh) {
       return await useRefreshToken({tokenType});
     }
 
@@ -214,12 +218,12 @@ const createKindeClient = async (
     }
   };
 
-  const getToken = async () => {
-    return await getTokenType(storageMap.access_token);
+  const getToken = async (options: GetTokenOptions) => {
+    return await getTokenType(storageMap.access_token, options);
   };
 
-  const getIdToken = async () => {
-    return await getTokenType(storageMap.id_token);
+  const getIdToken = async (options: GetTokenOptions) => {
+    return await getTokenType(storageMap.id_token, options);
   };
 
   const isAuthenticated = async () => {
