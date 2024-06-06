@@ -99,6 +99,10 @@ export type AuthOptions = {
   authUrlParams?: object;
 };
 
+export type GetTokenOptions = {
+  isForceRefresh?: boolean;
+};
+
 export type RedirectOptions = OrgOptions &
   AuthOptions & {
     prompt?: string;
