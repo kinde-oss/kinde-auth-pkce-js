@@ -28,7 +28,7 @@ import type {
   KindeUser,
   OrgOptions,
   RedirectOptions,
-  ErrorProps
+  ErrorProps,
   GetTokenOptions
 } from './types';
 
