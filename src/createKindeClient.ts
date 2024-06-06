@@ -27,7 +27,8 @@ import type {
   KindeState,
   KindeUser,
   OrgOptions,
-  RedirectOptions
+  RedirectOptions,
+  ErrorProps
 } from './types';
 
 const createKindeClient = async (
@@ -49,6 +50,7 @@ const createKindeClient = async (
     redirect_uri,
     logout_uri = redirect_uri,
     on_redirect_callback,
+    on_error_callback,
     scope = 'openid profile email offline',
     proxy_redirect_uri,
     _framework,
@@ -262,14 +264,16 @@ const createKindeClient = async (
     };
   };
 
+  const clearUrlParams = () => {
+    const url = new URL(window.location.toString());
+    url.search = '';
+    window.history.pushState({}, '', url);
+  };
+
   const handleRedirectToApp = async (q: URLSearchParams) => {
     const code = q.get('code')!;
     const state = q.get('state');
     const error = q.get('error');
-
-    if (error) {
-      console.error(`Error returned from authorization server: ${error}`);
-    }
 
     const stringState = sessionStorage.getItem(`${SESSION_PREFIX}-${state}`);
 
@@ -277,6 +281,25 @@ const createKindeClient = async (
     if (!stringState) {
       console.error('Invalid state');
     } else {
+      if (error) {
+        const error = q.get('error');
+        const errorDescription = q.get('error_description');
+        clearUrlParams();
+        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
+
+        const {appState} = JSON.parse(stringState);
+        if (on_error_callback) {
+          on_error_callback({
+            error,
+            errorDescription,
+            state,
+            appState
+          } as ErrorProps);
+        } else {
+          window.location.href = appState.kindeOriginUrl;
+        }
+        return false;
+      }
       const {appState, codeVerifier} = JSON.parse(stringState);
       // Exchange authorisation code for an access token
       try {
@@ -302,12 +325,10 @@ const createKindeClient = async (
 
         setStore(data);
         // Remove auth code from address bar
-        const url = new URL(window.location.toString());
-        url.search = '';
+        clearUrlParams();
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
 
         const user = getUser();
-        window.history.pushState({}, '', url);
 
         if (on_redirect_callback) {
           on_redirect_callback(user, appState);
@@ -321,13 +342,18 @@ const createKindeClient = async (
 
   const redirectToKinde = async (options: RedirectOptions) => {
     const {
-      app_state,
+      app_state = {},
       prompt,
       is_create_org,
       org_name = '',
       org_code,
       authUrlParams = {}
     } = options;
+
+    if (!app_state.kindeOriginUrl) {
+      app_state.kindeOriginUrl = window.location.href;
+    }
+
     const {state, code_challenge, url} = await setupChallenge(
       config.authorization_endpoint,
       app_state
@@ -462,7 +488,8 @@ const createKindeClient = async (
   const isKindeRedirect = (searchParams: URLSearchParams) => {
     // Check if the search params hve the code parameter
     const hasOauthCode = searchParams.has('code');
-    if (!hasOauthCode) return false;
+    const hasError = searchParams.has('error');
+    if (!hasOauthCode && !hasError) return false;
     // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
 
