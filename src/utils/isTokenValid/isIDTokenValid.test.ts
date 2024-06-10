@@ -3,7 +3,7 @@ import {isTokenValid} from './isTokenValid';
 
 const config = {
   iss: 'https://account.acme.com',
-  aud: 'https://account.acme.com',
+  aud: 'https://account.acme.com 123456789',
   azp: '123456789'
 };
 
@@ -111,7 +111,7 @@ describe('isIDToken valid', () => {
         config
       );
     }).toThrow(
-      `(aud) claim mismatch. Expected: "https://account.acme.com", Received: "mate"`
+      `(aud) claim mismatch. Expected: "https://account.acme.com 123456789", Received: "mate"`
     );
   });
 
