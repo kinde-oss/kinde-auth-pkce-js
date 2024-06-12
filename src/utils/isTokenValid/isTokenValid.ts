@@ -29,7 +29,11 @@ const isTokenValid = (token: any, config: any) => {
       throw new Error('(aud) claim must be an array');
     }
 
-    if (!token.payload.aud.includes(config.aud)) {
+    if (
+      !token.payload.aud.every((element: string) =>
+        config.aud.includes(element)
+      )
+    ) {
       throw new Error(
         `(aud) claim mismatch. Expected: "${
           config.aud
