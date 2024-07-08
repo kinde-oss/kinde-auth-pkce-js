@@ -1,6 +1,7 @@
 import {version} from './utils/version';
 import {SESSION_PREFIX, storageMap} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
+import {hasCookie} from './utils/hasCookie/hasCookie';
 
 import {
   type JWT,
@@ -161,11 +162,13 @@ const createKindeClient = async (
   const useRefreshToken = async (
     {tokenType} = {tokenType: storageMap.access_token}
   ) => {
-    const refresh_token = isUseLocalStorage
+    const localStorageRefreshToken = isUseLocalStorage
       ? (localStorage.getItem(storageMap.refresh_token) as string)
       : (store.getItem(storageMap.refresh_token) as string);
 
-    if (refresh_token || isUseCookie) {
+    const isCallTokenEndpoint =
+      localStorageRefreshToken || (isUseCookie && hasCookie('_kbrte'));
+    if (isCallTokenEndpoint) {
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
@@ -180,7 +183,8 @@ const createKindeClient = async (
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
-            ...(!isUseCookie && refresh_token && {refresh_token})
+            ...(!isUseCookie &&
+              localStorageRefreshToken && {localStorageRefreshToken})
           })
         });
 
