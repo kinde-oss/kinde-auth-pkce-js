@@ -142,13 +142,15 @@ const createKindeClient = async (
       store.setItem(storageMap.token_bundle, data);
       store.setItem(storageMap.access_token, accessToken);
       store.setItem(storageMap.id_token, idToken);
-      store.setItem(storageMap.user, {
-        id: idToken.sub,
-        given_name: idToken.given_name,
-        family_name: idToken.family_name,
-        email: idToken.email,
-        picture: idToken.picture
-      });
+      if (idToken.sub) {
+        store.setItem(storageMap.user, {
+          id: idToken.sub,
+          given_name: idToken.given_name,
+          family_name: idToken.family_name,
+          email: idToken.email,
+          picture: idToken.picture
+        });
+      }
 
       if (isUseLocalStorage) {
         localStorage.setItem(storageMap.refresh_token, data.refresh_token);
