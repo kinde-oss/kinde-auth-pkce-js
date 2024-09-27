@@ -186,7 +186,9 @@ const createKindeClient = async (
             client_id: config.client_id,
             grant_type: 'refresh_token',
             ...(!isUseCookie &&
-              localStorageRefreshToken && {refresh_token: localStorageRefreshToken})
+              localStorageRefreshToken && {
+                refresh_token: localStorageRefreshToken
+              })
           })
         });
 
