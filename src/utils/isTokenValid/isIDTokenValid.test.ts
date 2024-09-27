@@ -115,6 +115,21 @@ describe('isIDToken valid', () => {
     );
   });
 
+  test("Extra aud values don't throw", () => {
+    expect(
+      isTokenValid(
+        {
+          header,
+          payload: {
+            ...idTokenStub,
+            aud: ['https://account.acme.com', '123456789']
+          }
+        },
+        config
+      )
+    ).toBe(true);
+  });
+
   test('Throw error if token expired', () => {
     expect(() => {
       isTokenValid(
