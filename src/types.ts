@@ -110,8 +110,8 @@ export type RedirectOptions = OrgOptions &
   };
 
 export type KindeClient = {
-  getToken: () => Promise<string | undefined>;
-  getIdToken: () => Promise<string | undefined>;
+  getToken: (options?: GetTokenOptions) => Promise<string | undefined>;
+  getIdToken: (options?: GetTokenOptions) => Promise<string | undefined>;
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
