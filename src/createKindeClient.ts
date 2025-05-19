@@ -287,6 +287,26 @@ const createKindeClient = async (
     const state = q.get('state');
     const error = q.get('error');
 
+    if (error?.toLowerCase() === 'login_link_expired') {
+      const reauthState = q.get('reauth_state');
+      if (reauthState) {
+        const decodedAuthState = atob(reauthState);
+        try {
+          const reauthState = JSON.parse(decodedAuthState);
+          if (reauthState) {
+            login(reauthState);
+          }
+        } catch (ex) {
+          throw new Error(
+            ex instanceof Error
+              ? ex.message
+              : 'Unknown Error parsing reauth state'
+          );
+        }
+      }
+      return;
+    }
+
     const stringState = sessionStorage.getItem(`${SESSION_PREFIX}-${state}`);
 
     // Verify state
@@ -378,7 +398,8 @@ const createKindeClient = async (
       scope: config.requested_scopes,
       code_challenge,
       code_challenge_method: 'S256',
-      state
+      state,
+      supports_reauth: 'true'
     };
 
     if (prompt) {
