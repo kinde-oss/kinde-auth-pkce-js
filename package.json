@@ -88,6 +88,7 @@
   },
   "private": false,
   "dependencies": {
+    "@kinde/js-utils": "^0.18.1",
     "jwt-decode": "^4.0.0"
   }
 }
