@@ -32,6 +32,13 @@ import type {
   ErrorProps,
   GetTokenOptions
 } from './types';
+import {
+  generatePortalUrl,
+  GeneratePortalUrlParams,
+  MemoryStorage,
+  setActiveStorage,
+  StorageKeys
+} from '@kinde/js-utils';
 
 const createKindeClient = async (
   options: KindeClientOptions
@@ -505,6 +512,41 @@ const createKindeClient = async (
     }
   };
 
+  const portal = async (
+    options: Partial<Omit<GeneratePortalUrlParams, 'domain'>> = {}
+  ) => {
+    try {
+      const isAuth = await isAuthenticated();
+      if (!isAuth) {
+        throw new Error('User must be authenticated to access portal');
+      }
+
+      const returnUrl = options.returnUrl || window.location.href;
+      const tokens = store.getItem(storageMap.token_bundle) as KindeState;
+
+      if (!tokens || !tokens.access_token) {
+        throw new Error('No valid access token found');
+      }
+
+      const storage = new MemoryStorage();
+      await storage.setSessionItem(
+        StorageKeys.accessToken,
+        tokens.access_token
+      );
+      setActiveStorage(storage);
+
+      const portalUrl = await generatePortalUrl({
+        ...options,
+        domain: config.domain,
+        returnUrl
+      });
+
+      window.location.href = portalUrl.url.toString();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const init = async () => {
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
@@ -545,6 +587,7 @@ const createKindeClient = async (
     login,
     logout,
     register,
+    portal,
     isAuthenticated,
     createOrg,
     getClaim,
