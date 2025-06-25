@@ -1,7 +1,7 @@
-import { version } from './utils/version';
-import { SESSION_PREFIX, storageMap } from './constants/index';
-import { jwtDecode } from 'jwt-decode';
-import { hasCookie } from './utils/hasCookie/hasCookie';
+import {version} from './utils/version';
+import {SESSION_PREFIX, storageMap} from './constants/index';
+import {jwtDecode} from 'jwt-decode';
+import {hasCookie} from './utils/hasCookie/hasCookie';
 
 import {
   type JWT,
@@ -17,7 +17,7 @@ import {
   isTokenValid,
   isCustomDomain
 } from './utils/index';
-import { store } from './state/store';
+import {store} from './state/store';
 import type {
   AuthOptions,
   KindeClient,
@@ -118,13 +118,13 @@ const createKindeClient = async (
     _frameworkVersion
   };
 
-  const setStore = (data: KindeState & { error: string }) => {
+  const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
-    const idTokenHeader = jwtDecode(data.id_token, { header: true });
+    const idTokenHeader = jwtDecode(data.id_token, {header: true});
     const accessToken = jwtDecode(data.access_token);
-    const accessTokenHeader = jwtDecode(data.access_token, { header: true });
+    const accessTokenHeader = jwtDecode(data.access_token, {header: true});
 
     const validatorOptions = {
       iss: domain,
@@ -136,7 +136,7 @@ const createKindeClient = async (
         payload: idToken,
         header: idTokenHeader
       },
-      { ...validatorOptions, aud: clientId }
+      {...validatorOptions, aud: clientId}
     );
     const isAccessValid = isTokenValid(
       {
@@ -169,7 +169,7 @@ const createKindeClient = async (
   };
 
   const useRefreshToken = async (
-    { tokenType } = { tokenType: storageMap.access_token }
+    {tokenType} = {tokenType: storageMap.access_token}
   ) => {
     const localStorageRefreshToken = isUseLocalStorage
       ? (localStorage.getItem(storageMap.refresh_token) as string)
@@ -181,20 +181,21 @@ const createKindeClient = async (
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
-          ...(isUseCookie && { credentials: 'include' }),
+          ...(isUseCookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Kinde-SDK': `
-            ${config._framework || 'JavaScript'}/${config._frameworkVersion || version
-              }`
+            ${config._framework || 'JavaScript'}/${
+              config._frameworkVersion || version
+            }`
           }),
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
             ...(!isUseCookie &&
               localStorageRefreshToken && {
-              refresh_token: localStorageRefreshToken
-            })
+                refresh_token: localStorageRefreshToken
+              })
           })
         });
 
@@ -219,7 +220,7 @@ const createKindeClient = async (
     const token = store.getItem(storageMap.token_bundle) as KindeState;
 
     if (!token || options.isForceRefresh) {
-      return await useRefreshToken({ tokenType });
+      return await useRefreshToken({tokenType});
     }
 
     const tokenToReturn = store.getItem(tokenType);
@@ -230,7 +231,7 @@ const createKindeClient = async (
         ? token.access_token
         : token.id_token;
     } else {
-      return await useRefreshToken({ tokenType });
+      return await useRefreshToken({tokenType});
     }
   };
 
@@ -325,7 +326,7 @@ const createKindeClient = async (
         clearUrlParams();
         sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
 
-        const { appState } = JSON.parse(stringState);
+        const {appState} = JSON.parse(stringState);
         if (on_error_callback) {
           on_error_callback({
             error,
@@ -338,16 +339,17 @@ const createKindeClient = async (
         }
         return false;
       }
-      const { appState, codeVerifier } = JSON.parse(stringState);
+      const {appState, codeVerifier} = JSON.parse(stringState);
       // Exchange authorisation code for an access token
       try {
         const response = await fetch(config.token_endpoint, {
           method: 'POST',
-          ...(isUseCookie && { credentials: 'include' }),
+          ...(isUseCookie && {credentials: 'include'}),
           headers: new Headers({
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Kinde-SDK': `${config._framework || 'JavaScript'}/${config._frameworkVersion || version
-              }`
+            'Kinde-SDK': `${config._framework || 'JavaScript'}/${
+              config._frameworkVersion || version
+            }`
           }),
           body: new URLSearchParams({
             client_id: config.client_id,
@@ -386,14 +388,14 @@ const createKindeClient = async (
       org_code,
       authUrlParams = {},
       pricing_table_key = '',
-      plan_interest = '',
+      plan_interest = ''
     } = options;
 
     if (!app_state.kindeOriginUrl) {
       app_state.kindeOriginUrl = window.location.href;
     }
 
-    const { state, code_challenge, url } = await setupChallenge(
+    const {state, code_challenge, url} = await setupChallenge(
       config.authorization_endpoint,
       app_state
     );
@@ -574,7 +576,7 @@ const createKindeClient = async (
     const hasError = searchParams.has('error');
     if (!hasOauthCode && !hasError) return false;
     // Also check if redirect_uri matches current url
-    const { protocol, host, pathname } = window.location;
+    const {protocol, host, pathname} = window.location;
 
     const currentRedirectUri =
       proxy_redirect_uri || `${protocol}//${host}${pathname}`;

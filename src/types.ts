@@ -1,4 +1,4 @@
-import { GeneratePortalUrlParams } from '@kinde/js-utils';
+import {GeneratePortalUrlParams} from '@kinde/js-utils';
 
 export type KindeUser = {
   given_name: string | null;
