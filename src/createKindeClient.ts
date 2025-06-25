@@ -613,6 +613,7 @@ const createKindeClient = async (
     getIdToken,
     getUser,
     getUserProfile,
+    getUserEntitlements,
     login,
     logout,
     register,
