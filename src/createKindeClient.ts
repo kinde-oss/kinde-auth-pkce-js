@@ -294,7 +294,7 @@ const createKindeClient = async (
     const state = q.get('state');
     const error = q.get('error');
 
-    if (error?.toLowerCase() === 'login_link_expired') {
+    if (error?.toLowerCase() === '_link_expired') {
       const reauthState = q.get('reauth_state');
       if (reauthState) {
         const decodedAuthState = atob(reauthState);
@@ -496,6 +496,25 @@ const createKindeClient = async (
         picture: json.picture
       });
       return store.getItem(storageMap.user) as KindeUser;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getUserEntitlements = async () => {
+    const token = await getToken();
+    const headers = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch(`${config.domain}/account_api/v1/entitlements`, {
+        method: 'GET',
+        headers: headers
+      });
+      return await res.json();
+  
     } catch (err) {
       console.error(err);
     }

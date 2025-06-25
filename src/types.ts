@@ -119,6 +119,7 @@ export type KindeClient = {
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
+  getUserEntitlements: () => Promise<any | undefined>;
   login: (options?: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
   portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
