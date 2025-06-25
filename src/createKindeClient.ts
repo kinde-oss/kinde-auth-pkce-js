@@ -425,7 +425,7 @@ const createKindeClient = async (
     }
 
     if (pricing_table_key) {
-      searchParams.searchParams = pricing_table_key;
+      searchParams.pricing_table_key = pricing_table_key;
     }
 
     if (plan_interest) {
