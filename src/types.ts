@@ -1,4 +1,4 @@
-import {GeneratePortalUrlParams} from '@kinde/js-utils';
+import { GeneratePortalUrlParams } from '@kinde/js-utils';
 
 export type KindeUser = {
   given_name: string | null;
@@ -109,6 +109,8 @@ export type RedirectOptions = OrgOptions &
   AuthOptions & {
     prompt?: string;
     is_create_org?: boolean;
+    pricing_table_key?: string;
+    plan_interest?: string;
   };
 
 export type KindeClient = {
