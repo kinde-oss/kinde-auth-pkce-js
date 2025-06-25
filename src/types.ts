@@ -99,6 +99,8 @@ export type AuthOptions = {
   org_code?: string;
   app_state?: Record<string, unknown>;
   authUrlParams?: object;
+  pricing_table_key?: string;
+  plan_interest?: string;
 };
 
 export type GetTokenOptions = {
@@ -109,8 +111,6 @@ export type RedirectOptions = OrgOptions &
   AuthOptions & {
     prompt?: string;
     is_create_org?: boolean;
-    pricing_table_key?: string;
-    plan_interest?: string;
   };
 
 export type KindeClient = {
