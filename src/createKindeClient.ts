@@ -294,7 +294,7 @@ const createKindeClient = async (
     const state = q.get('state');
     const error = q.get('error');
 
-    if (error?.toLowerCase() === 'login_link_expired') {
+    if (error?.toLowerCase() === '_link_expired') {
       const reauthState = q.get('reauth_state');
       if (reauthState) {
         const decodedAuthState = atob(reauthState);
@@ -386,7 +386,9 @@ const createKindeClient = async (
       is_create_org,
       org_name = '',
       org_code,
-      authUrlParams = {}
+      authUrlParams = {},
+      pricing_table_key = '',
+      plan_interest = ''
     } = options;
 
     if (!app_state.kindeOriginUrl) {
@@ -420,6 +422,14 @@ const createKindeClient = async (
     if (is_create_org) {
       searchParams.is_create_org = String(is_create_org);
       searchParams.org_name = org_name;
+    }
+
+    if (pricing_table_key) {
+      searchParams.pricing_table_key = pricing_table_key;
+    }
+
+    if (plan_interest) {
+      searchParams.plan_interest = plan_interest;
     }
 
     const urlSearchParams = new URLSearchParams(
@@ -486,6 +496,25 @@ const createKindeClient = async (
         picture: json.picture
       });
       return store.getItem(storageMap.user) as KindeUser;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getUserEntitlements = async () => {
+    const token = await getToken();
+    const headers = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch(`${config.domain}/account_api/v1/entitlements`, {
+        method: 'GET',
+        headers: headers
+      });
+      return await res.json();
+  
     } catch (err) {
       console.error(err);
     }
@@ -584,6 +613,7 @@ const createKindeClient = async (
     getIdToken,
     getUser,
     getUserProfile,
+    getUserEntitlements,
     login,
     logout,
     register,
