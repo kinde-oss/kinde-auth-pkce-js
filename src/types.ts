@@ -99,6 +99,8 @@ export type AuthOptions = {
   org_code?: string;
   app_state?: Record<string, unknown>;
   authUrlParams?: object;
+  pricing_table_key?: string;
+  plan_interest?: string;
 };
 
 export type GetTokenOptions = {
@@ -117,6 +119,7 @@ export type KindeClient = {
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
+  getUserEntitlements: () => Promise<any | undefined>;
   login: (options?: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
   portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
