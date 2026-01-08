@@ -40,6 +40,20 @@ import {
   StorageKeys
 } from '@kinde/js-utils';
 
+const getRefreshStorageKey = (clientId: string) =>
+  `${storageMap.refresh_token}-${clientId}`;
+
+const getRefreshCookieName = (clientId: string) => `_kbrte_${clientId}`;
+
+const setRefreshCookie = (name: string, value: string) => {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${name}=${value}; Path=/; SameSite=Lax${secure}`;
+};
+
+const clearCookie = (name: string) => {
+  document.cookie = `${name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/;`;
+};
+
 const createKindeClient = async (
   options: KindeClientOptions
 ): Promise<KindeClient> => {
@@ -118,6 +132,69 @@ const createKindeClient = async (
     _frameworkVersion
   };
 
+  const refreshStorageKey = getRefreshStorageKey(client_id);
+  const refreshCookieName = getRefreshCookieName(client_id);
+  const legacyRefreshCookieName = '_kbrte';
+
+  const getStoredRefreshToken = () => {
+    const namespacedRefreshToken = isUseLocalStorage
+      ? localStorage.getItem(refreshStorageKey)
+      : (store.getItem(refreshStorageKey) as string | undefined);
+
+    if (namespacedRefreshToken) {
+      return namespacedRefreshToken;
+    }
+
+    const legacyRefreshToken = isUseLocalStorage
+      ? localStorage.getItem(storageMap.refresh_token)
+      : (store.getItem(storageMap.refresh_token) as string | undefined);
+
+    if (legacyRefreshToken) {
+      return legacyRefreshToken;
+    }
+
+    if (isUseCookie) {
+      const cookieRefreshToken =
+        hasCookie(refreshCookieName) || hasCookie(legacyRefreshCookieName);
+      if (cookieRefreshToken) {
+        return cookieRefreshToken;
+      }
+    }
+
+    return null;
+  };
+
+  const persistRefreshToken = (refreshToken?: string) => {
+    if (!refreshToken) return;
+
+    if (isUseLocalStorage) {
+      localStorage.setItem(refreshStorageKey, refreshToken);
+      localStorage.removeItem(storageMap.refresh_token);
+    } else {
+      store.setItem(refreshStorageKey, refreshToken);
+      store.removeItem(storageMap.refresh_token);
+    }
+
+    if (isUseCookie) {
+      setRefreshCookie(refreshCookieName, refreshToken);
+    }
+  };
+
+  const clearRefreshTokens = () => {
+    if (isUseLocalStorage) {
+      localStorage.removeItem(refreshStorageKey);
+      localStorage.removeItem(storageMap.refresh_token);
+    } else {
+      store.removeItem(refreshStorageKey);
+      store.removeItem(storageMap.refresh_token);
+    }
+
+    if (isUseCookie) {
+      clearCookie(refreshCookieName);
+      clearCookie(legacyRefreshCookieName);
+    }
+  };
+
   const setStore = (data: KindeState & {error: string}) => {
     if (!data || data.error) return;
 
@@ -160,23 +237,19 @@ const createKindeClient = async (
         });
       }
 
-      if (isUseLocalStorage) {
-        localStorage.setItem(storageMap.refresh_token, data.refresh_token);
-      } else {
-        store.setItem(storageMap.refresh_token, data.refresh_token);
-      }
+      persistRefreshToken(data.refresh_token);
     }
   };
 
   const useRefreshToken = async (
     {tokenType} = {tokenType: storageMap.access_token}
   ) => {
-    const localStorageRefreshToken = isUseLocalStorage
-      ? (localStorage.getItem(storageMap.refresh_token) as string)
-      : (store.getItem(storageMap.refresh_token) as string);
+    const storedRefreshToken = getStoredRefreshToken();
 
     const isCallTokenEndpoint =
-      localStorageRefreshToken || (isUseCookie && hasCookie('_kbrte'));
+      storedRefreshToken ||
+      (isUseCookie &&
+        (hasCookie(refreshCookieName) || hasCookie(legacyRefreshCookieName)));
     if (isCallTokenEndpoint) {
       try {
         const response = await fetch(config.token_endpoint, {
@@ -192,10 +265,9 @@ const createKindeClient = async (
           body: new URLSearchParams({
             client_id: config.client_id,
             grant_type: 'refresh_token',
-            ...(!isUseCookie &&
-              localStorageRefreshToken && {
-                refresh_token: localStorageRefreshToken
-              })
+            ...(storedRefreshToken && {
+              refresh_token: storedRefreshToken
+            })
           })
         });
 
@@ -497,9 +569,7 @@ const createKindeClient = async (
     try {
       store.reset();
 
-      if (isUseLocalStorage) {
-        localStorage.removeItem(storageMap.refresh_token);
-      }
+      clearRefreshTokens();
 
       const searchParams = new URLSearchParams({
         redirect: logout_uri
