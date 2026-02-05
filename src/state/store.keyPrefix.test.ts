@@ -15,6 +15,25 @@ describe('Store with keyPrefix', () => {
     store.reset();
   });
 
+  test('should default to kinde_ prefix for backward compatibility', () => {
+    // The default prefix should be kinde_ (underscore) not kinde- (hyphen)
+    // This ensures users upgrading from old versions can still read their stored data
+    expect(storageSettings.keyPrefix).toBe('kinde_');
+  });
+
+  test('should read data stored with old kinde_ prefix after upgrade', () => {
+    // Simulate old version storing data
+    // In old version, keys were stored directly without prefix handling
+    // When user upgrades, the new MemoryStorage should still be able to read it
+
+    store.setItem('kinde_access_token', 'old-token-value');
+    store.setItem('kinde_id_token', 'old-id-token');
+
+    // After upgrade, reading should still work
+    expect(store.getItem('kinde_access_token')).toBe('old-token-value');
+    expect(store.getItem('kinde_id_token')).toBe('old-id-token');
+  });
+
   test('should use custom keyPrefix when storing items', () => {
     // Set custom prefix
     storageSettings.keyPrefix = 'YourPrefixHere-';

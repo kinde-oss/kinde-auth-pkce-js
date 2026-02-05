@@ -2,9 +2,10 @@ import type {Store} from './store.types';
 import {
   MemoryStorage,
   storageSettings,
-  type StorageKeys,
-  setActiveStorage
+  type StorageKeys
 } from '@kinde/js-utils';
+
+storageSettings.keyPrefix = 'kinde_';
 
 const createStore = (): Store => {
   const memoryStorage = new MemoryStorage();
@@ -71,7 +72,7 @@ const createStore = (): Store => {
   const getSessionItem = <T = unknown>(
     itemKey: string | StorageKeys
   ): T | unknown | null => {
-    const value = memoryStorage.getSessionItem(itemKey);
+    const value = memoryStorage.getSessionItem(itemKey as StorageKeys);
     return deserializeValue<T>(value);
   };
 
@@ -80,12 +81,12 @@ const createStore = (): Store => {
     itemValue: T
   ): void => {
     const serialized = serializeValue(itemValue);
-    memoryStorage.setSessionItem(itemKey, serialized);
+    memoryStorage.setSessionItem(itemKey as StorageKeys, serialized);
     notifyListeners();
   };
 
   const removeSessionItem = (itemKey: string | StorageKeys): void => {
-    memoryStorage.removeSessionItem(itemKey);
+    memoryStorage.removeSessionItem(itemKey as StorageKeys);
     notifyListeners();
   };
 
