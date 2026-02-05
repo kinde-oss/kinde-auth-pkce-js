@@ -143,6 +143,11 @@ const createKindeClient = async (
       store.setItem(storageMap.token_bundle, data);
       store.setItem(storageMap.access_token, accessToken);
       store.setItem(storageMap.id_token, idToken);
+
+      // Also store raw JWT strings for @kinde/js-utils compatibility
+      store.setSessionItem('accessToken', data.access_token);
+      store.setSessionItem('idToken', data.id_token);
+
       if (idToken.sub) {
         store.setItem(storageMap.user, {
           id: idToken.sub,

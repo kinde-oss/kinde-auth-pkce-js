@@ -2,7 +2,8 @@ import type {Store} from './store.types';
 import {
   MemoryStorage,
   storageSettings,
-  type StorageKeys
+  type StorageKeys,
+  setActiveStorage
 } from '@kinde/js-utils';
 
 const createStore = (): Store => {
