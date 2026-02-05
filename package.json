@@ -15,6 +15,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/kinde-auth-pkce-js.esm.js"
       }
+    },
+    "./utils": {
+      "require": {
+        "types": "./dist/utils.d.ts",
+        "default": "./dist/utils.cjs"
+      },
+      "import": {
+        "types": "./dist/utils.d.ts",
+        "default": "./dist/utils.esm.js"
+      }
     }
   },
   "scripts": {
