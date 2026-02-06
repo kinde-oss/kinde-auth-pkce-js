@@ -2,6 +2,7 @@ import {version} from './utils/version';
 import {SESSION_PREFIX, storageMap} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
 import {hasCookie} from './utils/hasCookie/hasCookie';
+import {LocalStorage} from '@kinde/js-utils';
 
 import {
   type JWT,
@@ -99,6 +100,9 @@ const createKindeClient = async (
 
   const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
 
+  // Use LocalStorage from @kinde/js-utils for persistent storage
+  const localStorageAdapter = new LocalStorage();
+
   const config = {
     audience,
     client_id,
@@ -159,7 +163,10 @@ const createKindeClient = async (
       }
 
       if (isUseLocalStorage) {
-        localStorage.setItem(storageMap.refresh_token, data.refresh_token);
+        localStorageAdapter.setSessionItem(
+          storageMap.refresh_token as any,
+          data.refresh_token
+        );
       } else {
         store.setItem(storageMap.refresh_token, data.refresh_token);
       }
@@ -170,7 +177,9 @@ const createKindeClient = async (
     {tokenType} = {tokenType: storageMap.access_token}
   ) => {
     const localStorageRefreshToken = isUseLocalStorage
-      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      ? (localStorageAdapter.getSessionItem(
+          storageMap.refresh_token as any
+        ) as string)
       : (store.getItem(storageMap.refresh_token) as string);
 
     const isCallTokenEndpoint =
@@ -496,7 +505,7 @@ const createKindeClient = async (
       store.reset();
 
       if (isUseLocalStorage) {
-        localStorage.removeItem(storageMap.refresh_token);
+        localStorageAdapter.removeSessionItem(storageMap.refresh_token as any);
       }
 
       const searchParams = new URLSearchParams({
