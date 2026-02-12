@@ -1,3 +1,5 @@
+import {GeneratePortalUrlParams} from '@kinde/js-utils';
+
 export type KindeUser = {
   given_name: string | null;
   id: string | null;
@@ -117,6 +119,7 @@ export type KindeClient = {
   getUserProfile: () => Promise<KindeUser | undefined>;
   login: (options?: AuthOptions) => Promise<void>;
   logout: () => Promise<void>;
+  portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
   register: (options?: AuthOptions) => Promise<void>;
   createOrg: (options?: OrgOptions) => Promise<void>;
   getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
