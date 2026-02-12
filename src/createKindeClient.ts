@@ -7,7 +7,6 @@ import {LocalStorage} from '@kinde/js-utils';
 import {
   type JWT,
   isJWTActive,
-  setupChallenge,
   getClaim,
   getClaimValue,
   getUserOrganizations,
@@ -34,12 +33,17 @@ import type {
   GetTokenOptions
 } from './types';
 import {
+  generateAuthUrl,
   generatePortalUrl,
   GeneratePortalUrlParams,
+  IssuerRouteTypes,
   MemoryStorage,
+  PromptTypes,
+  Scopes,
   setActiveStorage,
+  getActiveStorage,
   StorageKeys
-} from '@kinde/js-utils';
+} from './kindeUtils';
 
 const createKindeClient = async (
   options: KindeClientOptions
@@ -94,6 +98,14 @@ const createKindeClient = async (
   }
 
   const client_id = clientId || 'spa@live';
+  console.log(
+    'PESICKA, inside createKindeClient, setting active storage',
+    JSON.stringify(store)
+  );
+  setActiveStorage(store);
+
+  const getStorage = getActiveStorage();
+  console.log('PESICKA, getStorage', JSON.stringify(getStorage));
 
   // If code is running on localhost, it's a development environment
   const isDevelopment =
@@ -105,7 +117,8 @@ const createKindeClient = async (
     !is_dangerously_use_local_storage &&
     isCustomDomain(domain);
 
-  const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
+  const isUseLocalStorage = false;
+  //isDevelopment || is_dangerously_use_local_storage;
 
   // Use LocalStorage from @kinde/js-utils for persistent storage
   const localStorageAdapter = new LocalStorage();
@@ -407,49 +420,46 @@ const createKindeClient = async (
       app_state.kindeOriginUrl = window.location.href;
     }
 
-    const {state, code_challenge, url} = await setupChallenge(
-      config.authorization_endpoint,
-      app_state
-    );
+    const routeType =
+      is_create_org || prompt === 'create'
+        ? IssuerRouteTypes.register
+        : IssuerRouteTypes.login;
 
-    const searchParams: Record<string, string> = {
-      redirect_uri,
-      client_id,
-      response_type: 'code',
-      scope: config.requested_scopes,
-      code_challenge,
-      code_challenge_method: 'S256',
-      state,
-      supports_reauth: 'true'
+    const loginOptions = {
+      redirectURL: redirect_uri,
+      clientId: client_id,
+      scope: config.requested_scopes.split(' ') as Scopes[],
+      supportsReauth: true,
+      prompt: options.prompt as PromptTypes,
+      orgCode: org_code ?? options.orgCode,
+      orgName: org_name || options.orgName,
+      isCreateOrg: is_create_org ?? options.isCreateOrg,
+      audience: audience ?? options.audience,
+      lang: options.lang,
+      loginHint: options.loginHint,
+      connectionId: options.connectionId,
+      hasSuccessPage: options.hasSuccessPage,
+      workflowDeploymentId: options.workflowDeploymentId,
+      properties: options.properties,
+      reauthState: options.reauthState,
+      planInterest: options.planInterest,
+      pricingTableKey: options.pricingTableKey,
+      pagesMode: options.pagesMode
     };
 
-    if (prompt) {
-      searchParams.prompt = prompt;
-    }
-
-    if (org_code) {
-      searchParams.org_code = org_code;
-    }
-
-    if (is_create_org) {
-      searchParams.is_create_org = String(is_create_org);
-      searchParams.org_name = org_name;
-    }
-
-    const urlSearchParams = new URLSearchParams(
-      Object.assign(authUrlParams, searchParams)
+    const {url, state, codeVerifier} = await generateAuthUrl(
+      config.domain,
+      routeType,
+      loginOptions
     );
 
-    if (audience) {
-      /* if multiple audiences requested it should appear multiple times in the query string */
-      audience
-        .trim()
-        .split(/\s+/)
-        .forEach((aud) => {
-          urlSearchParams.append('audience', aud);
-        });
+    if (Object.keys(authUrlParams).length > 0) {
+      const merged = new URLSearchParams(url.search);
+      Object.entries(authUrlParams as Record<string, string>).forEach(
+        ([key, value]) => merged.set(key, value)
+      );
+      url.search = String(merged);
     }
-    url.search = String(urlSearchParams);
 
     window.location.href = url.toString();
   };
@@ -565,6 +575,7 @@ const createKindeClient = async (
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
     if (isKindeRedirect(q)) {
+      console.log('PESICKA, handle redirect to App');
       await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh
@@ -582,12 +593,16 @@ const createKindeClient = async (
     // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
 
-    const currentRedirectUri =
-      proxy_redirect_uri || `${protocol}//${host}${pathname}`;
-
+    const currentRedirectUri = `${protocol}//${host}${pathname}`;
+    const expectedRedirectUri = proxy_redirect_uri || redirect_uri;
+    console.log(
+      'PESICKA, isKindeRedirect',
+      currentRedirectUri,
+      expectedRedirectUri
+    );
     return (
-      currentRedirectUri === redirect_uri ||
-      currentRedirectUri === `${redirect_uri}/`
+      currentRedirectUri === expectedRedirectUri ||
+      currentRedirectUri === `${expectedRedirectUri}/ `
     );
   };
 

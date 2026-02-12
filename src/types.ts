@@ -1,4 +1,4 @@
-import {GeneratePortalUrlParams} from '@kinde/js-utils';
+import {GeneratePortalUrlParams, type LoginMethodParams} from '@kinde/js-utils';
 
 export type KindeUser = {
   given_name: string | null;
@@ -105,9 +105,11 @@ export type GetTokenOptions = {
   isForceRefresh?: boolean;
 };
 
+/** Options for redirecting to Kinde (login/register/createOrg). Supports legacy snake_case and @kinde/js-utils camelCase. */
 export type RedirectOptions = OrgOptions &
-  AuthOptions & {
-    prompt?: string;
+  AuthOptions &
+  Omit<Partial<LoginMethodParams>, 'prompt'> & {
+    prompt?: string | import('@kinde/js-utils').PromptTypes;
     is_create_org?: boolean;
   };
 

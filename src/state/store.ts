@@ -1,14 +1,15 @@
 import type {Store} from './store.types';
 import {
   MemoryStorage,
+  setActiveStorage,
   storageSettings,
   type StorageKeys
-} from '@kinde/js-utils';
+} from '../kindeUtils';
 
 storageSettings.keyPrefix = 'kinde_';
+const memoryStorage = new MemoryStorage();
 
 const createStore = (): Store => {
-  const memoryStorage = new MemoryStorage();
   const listeners: Array<() => void | Promise<void>> = [];
   let notificationScheduled = false;
 
@@ -166,5 +167,6 @@ const createStore = (): Store => {
 };
 
 const store = createStore();
-
+console.log('PESICKA, memoryStorage', JSON.stringify(memoryStorage));
+setActiveStorage(memoryStorage);
 export {store, storageSettings};
