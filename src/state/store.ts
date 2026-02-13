@@ -167,6 +167,5 @@ const createStore = (): Store => {
 };
 
 const store = createStore();
-console.log('PESICKA, memoryStorage', JSON.stringify(memoryStorage));
 setActiveStorage(memoryStorage);
 export {store, storageSettings};

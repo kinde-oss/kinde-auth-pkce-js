@@ -32,16 +32,15 @@ import type {
   ErrorProps,
   GetTokenOptions
 } from './types';
+import {isAuthenticated as isAuthenticatedFromJsUtils} from '@kinde/js-utils';
 import {
   generateAuthUrl,
   generatePortalUrl,
   GeneratePortalUrlParams,
   IssuerRouteTypes,
-  MemoryStorage,
   PromptTypes,
   Scopes,
   setActiveStorage,
-  getActiveStorage,
   StorageKeys
 } from './kindeUtils';
 
@@ -98,14 +97,7 @@ const createKindeClient = async (
   }
 
   const client_id = clientId || 'spa@live';
-  console.log(
-    'PESICKA, inside createKindeClient, setting active storage',
-    JSON.stringify(store)
-  );
   setActiveStorage(store);
-
-  const getStorage = getActiveStorage();
-  console.log('PESICKA, getStorage', JSON.stringify(getStorage));
 
   // If code is running on localhost, it's a development environment
   const isDevelopment =
@@ -117,8 +109,7 @@ const createKindeClient = async (
     !is_dangerously_use_local_storage &&
     isCustomDomain(domain);
 
-  const isUseLocalStorage = false;
-  //isDevelopment || is_dangerously_use_local_storage;
+  const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
 
   // Use LocalStorage from @kinde/js-utils for persistent storage
   const localStorageAdapter = new LocalStorage();
@@ -263,26 +254,36 @@ const createKindeClient = async (
   };
 
   const getToken = async (options: GetTokenOptions = {}) => {
-    return await getTokenType(storageMap.access_token, options);
+    const legacyToken = await getTokenType(storageMap.access_token, options);
+    const sessionToken = store.getSessionItem(StorageKeys.accessToken);
+
+    return legacyToken || sessionToken;
   };
 
   const getIdToken = async (options: GetTokenOptions = {}) => {
-    return await getTokenType(storageMap.id_token, options);
+    const legacyToken = await getTokenType(storageMap.id_token, options);
+    const sessionToken = store.getSessionItem(StorageKeys.idToken);
+
+    return legacyToken || sessionToken;
   };
 
   const isAuthenticated = async () => {
-    const accessToken = store.getItem(storageMap.access_token);
-    if (!accessToken) {
-      return false;
+    // Backwards compatibility: ensure js-utils sees token from legacy keys
+    const sessionAccessToken = store.getSessionItem(StorageKeys.accessToken);
+    if (!sessionAccessToken) {
+      const tokenBundle = store.getItem(
+        storageMap.token_bundle
+      ) as KindeState | null;
+      if (tokenBundle?.access_token) {
+        store.setSessionItem(StorageKeys.accessToken, tokenBundle.access_token);
+      }
     }
 
-    const isTokenActive = isJWTActive(accessToken as JWT);
-    if (isTokenActive) {
-      return true;
-    }
-
-    await useRefreshToken();
-    return true;
+    return isAuthenticatedFromJsUtils({
+      useRefreshToken: true,
+      domain,
+      clientId: client_id
+    });
   };
 
   const getPermissions = (): KindePermissions => {
@@ -546,18 +547,11 @@ const createKindeClient = async (
       }
 
       const returnUrl = options.returnUrl || window.location.href;
-      const tokens = store.getItem(storageMap.token_bundle) as KindeState;
+      const tokens = getToken();
 
-      if (!tokens || !tokens.access_token) {
+      if (!tokens) {
         throw new Error('No valid access token found');
       }
-
-      const storage = new MemoryStorage();
-      await storage.setSessionItem(
-        StorageKeys.accessToken,
-        tokens.access_token
-      );
-      setActiveStorage(storage);
 
       const portalUrl = await generatePortalUrl({
         ...options,
@@ -575,7 +569,6 @@ const createKindeClient = async (
     const q = new URLSearchParams(window.location.search);
     // Is a redirect from Kinde Auth server
     if (isKindeRedirect(q)) {
-      console.log('PESICKA, handle redirect to App');
       await handleRedirectToApp(q);
     } else {
       // For onload / new tab / page refresh
@@ -595,11 +588,6 @@ const createKindeClient = async (
 
     const currentRedirectUri = `${protocol}//${host}${pathname}`;
     const expectedRedirectUri = proxy_redirect_uri || redirect_uri;
-    console.log(
-      'PESICKA, isKindeRedirect',
-      currentRedirectUri,
-      expectedRedirectUri
-    );
     return (
       currentRedirectUri === expectedRedirectUri ||
       currentRedirectUri === `${expectedRedirectUri}/ `
