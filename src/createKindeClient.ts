@@ -160,8 +160,8 @@ const createKindeClient = async (
       store.setItem(storageMap.id_token, idToken);
 
       // Also store raw JWT strings for @kinde/js-utils compatibility
-      store.setSessionItem('accessToken', data.access_token);
-      store.setSessionItem('idToken', data.id_token);
+      store.setSessionItem(StorageKeys.accessToken, data.access_token);
+      store.setSessionItem(StorageKeys.idToken, data.id_token);
 
       if (idToken.sub) {
         store.setItem(storageMap.user, {
@@ -547,7 +547,7 @@ const createKindeClient = async (
       }
 
       const returnUrl = options.returnUrl || window.location.href;
-      const tokens = getToken();
+      const tokens = await getToken();
 
       if (!tokens) {
         throw new Error('No valid access token found');
@@ -590,7 +590,7 @@ const createKindeClient = async (
     const expectedRedirectUri = proxy_redirect_uri || redirect_uri;
     return (
       currentRedirectUri === expectedRedirectUri ||
-      currentRedirectUri === `${expectedRedirectUri}/ `
+      currentRedirectUri === `${expectedRedirectUri}/`
     );
   };
 

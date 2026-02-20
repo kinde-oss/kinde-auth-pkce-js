@@ -1,10 +1,5 @@
 import type {Store} from './store.types';
-import {
-  MemoryStorage,
-  setActiveStorage,
-  storageSettings,
-  type StorageKeys
-} from '../kindeUtils';
+import {MemoryStorage, storageSettings, type StorageKeys} from '../kindeUtils';
 
 storageSettings.keyPrefix = 'kinde_';
 const memoryStorage = new MemoryStorage();
@@ -19,8 +14,12 @@ const createStore = (): Store => {
     notificationScheduled = true;
     queueMicrotask(() => {
       notificationScheduled = false;
-      listeners.forEach((listener) => {
-        listener();
+      listeners.forEach(async (listener) => {
+        try {
+          await listener();
+        } catch (e) {
+          console.error('Store listener error:', e);
+        }
       });
     });
   };
@@ -167,5 +166,4 @@ const createStore = (): Store => {
 };
 
 const store = createStore();
-setActiveStorage(memoryStorage);
 export {store, storageSettings};
