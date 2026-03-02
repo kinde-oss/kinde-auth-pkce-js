@@ -3,7 +3,7 @@
  * This must be called before using any js-utils functions
  */
 
-import {setActiveStorage, getActiveStorage} from '../kindeUtils';
+import {setActiveStorage} from '../kindeUtils';
 import {KindeStorageAdapter} from './storageAdapter';
 
 // Create and set the storage adapter only if not already set

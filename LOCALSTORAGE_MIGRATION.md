@@ -7,6 +7,7 @@ The SDK now uses the `LocalStorage` class from `@kinde/js-utils` instead of dire
 ## What Changed
 
 ### Before (Direct Browser API)
+
 ```typescript
 // Direct access to browser localStorage
 localStorage.setItem(storageMap.refresh_token, data.refresh_token);
@@ -15,12 +16,16 @@ localStorage.removeItem(storageMap.refresh_token);
 ```
 
 ### After (@kinde/js-utils LocalStorage)
+
 ```typescript
 // Using LocalStorage adapter from js-utils
 import {LocalStorage} from '@kinde/js-utils';
 
 const localStorageAdapter = new LocalStorage();
-localStorageAdapter.setSessionItem(storageMap.refresh_token, data.refresh_token);
+localStorageAdapter.setSessionItem(
+  storageMap.refresh_token,
+  data.refresh_token
+);
 const token = localStorageAdapter.getSessionItem(storageMap.refresh_token);
 localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 ```
@@ -30,11 +35,13 @@ localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 ### File: `src/createKindeClient.ts`
 
 1. **Added import:**
+
    ```typescript
    import {LocalStorage} from '@kinde/js-utils';
    ```
 
 2. **Created LocalStorage instance:**
+
    ```typescript
    const localStorageAdapter = new LocalStorage();
    ```
@@ -47,26 +54,31 @@ localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 ## Benefits
 
 ### 1. **Consistent API**
+
 - Same interface across all storage types (MemoryStorage, LocalStorage, etc.)
 - Unified `SessionManager` interface
 - Easier to switch between storage implementations
 
 ### 2. **Automatic Prefix Handling**
+
 - LocalStorage now respects `storageSettings.keyPrefix`
 - Consistent prefix behavior across all storage types
 - Better namespace isolation
 
 ### 3. **Better Testability**
+
 - Easier to mock and test
 - Abstract away direct browser API dependencies
 - More maintainable code
 
 ### 4. **Future-Proof**
+
 - Centralized storage management
 - Easy to add new storage options
 - Consistent behavior across all Kinde SDKs
 
 ### 5. **Enhanced Features**
+
 - Activity timeout support
 - Storage event listeners
 - Batch operations
@@ -75,6 +87,7 @@ localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 ## Backward Compatibility
 
 ✅ **No Breaking Changes**
+
 - Refresh tokens are still stored in browser's localStorage
 - Existing stored data continues to work
 - Same storage keys used (`kinde_refresh_token`)
@@ -106,17 +119,22 @@ storageSettings.keyPrefix = 'MyApp_';
 ## Technical Details
 
 ### Storage Location
+
 - **Refresh tokens** are stored in browser's localStorage (when `isUseLocalStorage` is true)
 - **Access tokens** and **ID tokens** are stored in MemoryStorage
 - **User data** is stored in MemoryStorage
 
 ### When LocalStorage is Used
+
 LocalStorage is used for refresh tokens when:
+
 1. Running on localhost/127.0.0.1 (development mode), OR
 2. `is_dangerously_use_local_storage` option is set to `true`
 
 ### Type Casting
+
 Due to TypeScript type constraints, we cast `storageMap.refresh_token` to `any` when passing to LocalStorage methods. This is safe because:
+
 - The storage adapter handles any string key
 - It's only used for the refresh token key
 - The type system ensures compile-time safety elsewhere
@@ -124,6 +142,7 @@ Due to TypeScript type constraints, we cast `storageMap.refresh_token` to `any` 
 ## Code Comparison
 
 ### setStore Function
+
 ```diff
   if (isUseLocalStorage) {
 -   localStorage.setItem(storageMap.refresh_token, data.refresh_token);
@@ -137,6 +156,7 @@ Due to TypeScript type constraints, we cast `storageMap.refresh_token` to `any` 
 ```
 
 ### useRefreshToken Function
+
 ```diff
   const localStorageRefreshToken = isUseLocalStorage
 -   ? (localStorage.getItem(storageMap.refresh_token) as string)
@@ -147,6 +167,7 @@ Due to TypeScript type constraints, we cast `storageMap.refresh_token` to `any` 
 ```
 
 ### logout Function
+
 ```diff
   if (isUseLocalStorage) {
 -   localStorage.removeItem(storageMap.refresh_token);
@@ -196,6 +217,7 @@ This change is part of the larger migration to `@kinde/js-utils`. Future enhance
 ## Questions?
 
 For questions or issues related to this change:
+
 - Review the `@kinde/js-utils` documentation
 - Check examples in `examples/` folder
 - See test files for usage patterns

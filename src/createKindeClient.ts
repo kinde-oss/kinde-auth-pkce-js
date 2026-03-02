@@ -457,9 +457,11 @@ const createKindeClient = async (
 
     if (Object.keys(authUrlParams).length > 0) {
       const merged = new URLSearchParams(url.search);
-      Object.entries(authUrlParams as Record<string, string>).forEach(
-        ([key, value]) => merged.set(key, value)
-      );
+      for (const [key, value] of Object.entries(
+        authUrlParams as Record<string, string>
+      )) {
+        merged.set(key, value);
+      }
       url.search = String(merged);
     }
 
@@ -504,16 +506,18 @@ const createKindeClient = async (
     try {
       const user = await getUserProfileFromJsUtils();
 
-      if (user) {
-        store.setItem(storageMap.user, {
-          id: user.id,
-          given_name: user.givenName,
-          family_name: user.familyName,
-          email: user.email,
-          picture: user.picture
-        });
-      }
-      return user as KindeUser;
+      if (!user) return;
+
+      const mappedUser: KindeUser = {
+        id: user.id,
+        given_name: user.givenName,
+        family_name: user.familyName,
+        email: user.email,
+        picture: user.picture
+      };
+
+      store.setItem(storageMap.user, mappedUser);
+      return mappedUser;
     } catch (err) {
       console.error(err);
     }

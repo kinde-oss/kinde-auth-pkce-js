@@ -1,11 +1,11 @@
 import {GeneratePortalUrlParams, type LoginMethodParams} from '@kinde/js-utils';
 
 export type KindeUser = {
-  given_name: string | null;
-  id: string | null;
-  family_name: string | null;
-  email: string | null;
-  picture: string | null;
+  given_name: string | undefined;
+  id: string | undefined;
+  family_name: string | undefined;
+  email: string | undefined;
+  picture: string | undefined;
 };
 
 export type KindeState = {

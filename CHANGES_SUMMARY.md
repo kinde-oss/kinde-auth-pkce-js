@@ -13,6 +13,7 @@ This branch (`feat/upgrade-store`) migrates the SDK from custom storage and help
 ## 🎯 Key Achievements
 
 ### 1. Storage Migration
+
 - ✅ Replaced custom in-memory store with `@kinde/js-utils` MemoryStorage
 - ✅ Replaced direct `localStorage` usage with `LocalStorage` from `@kinde/js-utils`
 - ✅ Maintains backward compatibility with `kinde_` prefix (not `kinde-`)
@@ -20,17 +21,20 @@ This branch (`feat/upgrade-store`) migrates the SDK from custom storage and help
 - ✅ Implements dual storage format (decoded + raw JWT)
 
 ### 2. Helper Functions Migration
+
 - ✅ `getClaim` - Now uses `getClaimSync` from js-utils
 - ✅ `getClaimValue` - Now uses `getClaimSync` from js-utils
 - ✅ `getUserOrganizations` - Now uses `getUserOrganizationsSync` from js-utils
 - ✅ Indirect migration: `getFlag`, `getBooleanFlag`, `getStringFlag`, `getIntegerFlag`
 
 ### 3. New Exports
+
 - ✅ Added `/utils` export path for accessing js-utils functionality
 - ✅ Exported `storageSettings` for configuration
 - ✅ Exported `SessionManager` type for TypeScript users
 
 ### 4. Code Reduction
+
 - ✅ Net reduction in custom code to maintain
 - ✅ Leverages official Kinde implementations
 - ✅ Automatic updates when js-utils is updated
@@ -47,7 +51,7 @@ This branch (`feat/upgrade-store`) migrates the SDK from custom storage and help
 
 2. **`src/state/storageAdapter.ts`** (61 lines)
    - `KindeStorageAdapter` class
-   - Maps js-utils StorageKeys to legacy kinde_* format
+   - Maps js-utils StorageKeys to legacy kinde\_\* format
    - Implements SessionManager interface
 
 3. **`src/state/store.keyPrefix.test.ts`** (115 lines)
@@ -172,12 +176,16 @@ localStorage.removeItem(storageMap.refresh_token);
 
 // NEW (js-utils LocalStorage)
 const localStorageAdapter = new LocalStorage();
-localStorageAdapter.setSessionItem(storageMap.refresh_token, data.refresh_token);
+localStorageAdapter.setSessionItem(
+  storageMap.refresh_token,
+  data.refresh_token
+);
 const token = localStorageAdapter.getSessionItem(storageMap.refresh_token);
 localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 ```
 
 **Benefits:**
+
 - Consistent storage interface across all Kinde SDKs
 - Automatic prefix handling (respects `storageSettings.keyPrefix`)
 - Better testability and abstraction
@@ -189,19 +197,19 @@ localStorageAdapter.removeSessionItem(storageMap.refresh_token);
 **Critical Fix:** Default prefix set to `kinde_` (underscore) instead of `kinde-` (hyphen)
 
 ```typescript
-// In src/state/store.ts
-if (!storageSettings.keyPrefix || storageSettings.keyPrefix === 'kinde-') {
-  storageSettings.keyPrefix = 'kinde_';
-}
+// In src/state/store.ts (at module load)
+storageSettings.keyPrefix = 'kinde_';
 ```
 
 **Why this matters:**
+
 - Previous version: Keys stored as `kinde_access_token`, `kinde_id_token`
 - Without this fix: js-utils would use `kinde-` prefix by default
 - Result: Upgrading users would lose access to their stored tokens
-- Solution: Set default to `kinde_` to match legacy behavior
+- Solution: Default is set to `kinde_` at module load to match legacy behavior. Override via `storageSettings.keyPrefix` before creating the client if you need a different prefix.
 
 **User Override:**
+
 ```typescript
 import {storageSettings} from '@kinde-oss/kinde-auth-pkce-js';
 
@@ -220,11 +228,13 @@ storageSettings.keyPrefix = '';
 Tokens are now stored in TWO formats for compatibility:
 
 **Format 1: Legacy (Decoded Objects)**
+
 - `kinde_access_token` → Decoded access token object
 - `kinde_id_token` → Decoded ID token object
 - Used by existing code and APIs
 
 **Format 2: New (Raw JWT Strings)**
+
 - `accessToken` → Raw JWT access token string
 - `idToken` → Raw JWT ID token string
 - Used by js-utils helper functions
@@ -232,6 +242,7 @@ Tokens are now stored in TWO formats for compatibility:
 ### Storage Adapter Bridge
 
 `KindeStorageAdapter` class bridges between:
+
 - Legacy `kinde_*` key format
 - js-utils `StorageKeys` format
 - Implements `SessionManager` interface
@@ -246,6 +257,7 @@ Tokens are now stored in TWO formats for compatibility:
 **Total Tests:** 69 tests (all passing)
 
 **By Category:**
+
 - Storage & prefix tests: 6 tests
 - getClaim: 4 tests
 - getClaimValue: 2 tests
@@ -260,6 +272,7 @@ Tokens are now stored in TWO formats for compatibility:
 - Other utilities: 22 tests
 
 **New Test Files:**
+
 - `store.keyPrefix.test.ts` - Storage prefix behavior
 - `kindeUtils.test.ts` - Utils export path
 - `package-exports.test.ts` - Package exports integration
@@ -339,7 +352,7 @@ Tokens are now stored in TWO formats for compatibility:
 ✅ All return types  
 ✅ All storage key names  
 ✅ All error handling behavior  
-✅ All test coverage  
+✅ All test coverage
 
 ### What's New (Opt-in)
 
@@ -347,11 +360,12 @@ Tokens are now stored in TWO formats for compatibility:
 🆕 `/utils` export path  
 🆕 Direct access to js-utils  
 🆕 SessionManager interface  
-🆕 Multi-tenant support  
+🆕 Multi-tenant support
 
 ### Migration Path
 
 **For existing users:**
+
 ```typescript
 // No changes needed! Everything works as before
 const client = await createKindeClient({...});
@@ -359,6 +373,7 @@ const email = getClaim('email');
 ```
 
 **For new features:**
+
 ```typescript
 // Opt-in to new capabilities
 import {storageSettings} from '@kinde-oss/kinde-auth-pkce-js';
@@ -408,17 +423,20 @@ storageSettings.keyPrefix = 'MyApp_';
 ## 📊 Statistics
 
 **Code Changes:**
+
 - Files changed: 24
 - Lines added: 810
 - Lines removed: 57
 - Net change: +753 lines (mostly tests and docs)
 
 **Test Coverage:**
+
 - Test suites: 14 passed
 - Total tests: 69 passed
 - Coverage: Comprehensive
 
 **Dependencies:**
+
 - Added: `@kinde/js-utils` (v0.29.0)
 - No breaking dependency changes
 

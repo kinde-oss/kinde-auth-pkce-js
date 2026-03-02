@@ -101,10 +101,13 @@ These functions use `getClaimValue` internally, so they now indirectly benefit f
 The SDK now uses `LocalStorage` from `@kinde/js-utils` instead of directly accessing the browser's `localStorage` API.
 
 **What Changed:**
-- **Before:** Direct `localStorage.setItem()`, `localStorage.getItem()`, `localStorage.removeItem()`
-- **After:** Uses `LocalStorage` class from js-utils with `setSessionItem()`, `getSessionItem()`, `removeSessionItem()`
+
+- **Before:** Direct `localStorage.setItem()`, `localStorage.getItem()`, `localStorage.removeItem()` (browser localStorage API).
+- **After:** Uses the `LocalStorage` class from js-utils. The mapping is `setItem()` → `setSessionItem()`, `getItem()` → `getSessionItem()`, `removeItem()` → `removeSessionItem()`
+  - these are **methods on the LocalStorage class** (not the browser’s `sessionStorage` API). In this implementation they still persist data to **browser localStorage**; the "Session" in the names is the shared storage-interface naming, not temporary/session-scoped storage. See [Dual Storage Format](#dual-storage-format) for how the LocalStorage/store is used.
 
 **Why This Matters:**
+
 - ✅ Consistent API across all storage types (MemoryStorage, LocalStorage, etc.)
 - ✅ Automatic prefix handling via `storageSettings.keyPrefix`
 - ✅ Better testability and mocking
@@ -112,6 +115,7 @@ The SDK now uses `LocalStorage` from `@kinde/js-utils` instead of directly acces
 - ✅ Future-proof for additional storage options
 
 **User Impact:**
+
 - ✅ **No breaking changes** - Refresh tokens are still stored in browser localStorage
 - ✅ **No migration needed** - Works seamlessly with existing stored data
 - ✅ **Prefix support** - LocalStorage now respects `storageSettings.keyPrefix`
@@ -167,7 +171,6 @@ storageSettings.keyPrefix = '';
 The `setStore` function in `createKindeClient.ts` now stores tokens in TWO formats:
 
 1. **Decoded objects** (backward compatibility):
-
    - `kinde_access_token`: Decoded access token object
    - `kinde_id_token`: Decoded ID token object
 
@@ -215,7 +218,7 @@ Created `KindeStorageAdapter` class that:
 - **Utils export**: 5 tests ✅
 - **Package exports**: 4 tests ✅
 
-**Total**: 67 tests passing ✅
+**Total**: 69 tests passing ✅
 
 ## Error Handling
 
