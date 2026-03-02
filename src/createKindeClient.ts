@@ -2,7 +2,6 @@ import {version} from './utils/version';
 import {SESSION_PREFIX, storageMap} from './constants/index';
 import {jwtDecode} from 'jwt-decode';
 import {hasCookie} from './utils/hasCookie/hasCookie';
-import {LocalStorage} from '@kinde/js-utils';
 
 import {
   type JWT,
@@ -41,7 +40,9 @@ import {
   PromptTypes,
   Scopes,
   setActiveStorage,
-  StorageKeys
+  StorageKeys,
+  getUserProfile as getUserProfileFromJsUtils,
+  LocalStorage
 } from './kindeUtils';
 
 const createKindeClient = async (
@@ -462,6 +463,15 @@ const createKindeClient = async (
       url.search = String(merged);
     }
 
+    // Persist state and code_verifier so handleRedirectToApp can validate state and exchange the code
+    sessionStorage.setItem(
+      `${SESSION_PREFIX}-${state}`,
+      JSON.stringify({
+        codeVerifier,
+        appState: app_state
+      })
+    );
+
     window.location.href = url.toString();
   };
 
@@ -491,26 +501,19 @@ const createKindeClient = async (
   };
 
   const getUserProfile = async () => {
-    const token = await getToken();
-    const headers = {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`
-    };
-
     try {
-      const res = await fetch(`${config.domain}/oauth2/v2/user_profile`, {
-        method: 'GET',
-        headers: headers
-      });
-      const json = await res.json();
-      store.setItem(storageMap.user, {
-        id: json.sub,
-        given_name: json.given_name,
-        family_name: json.family_name,
-        email: json.email,
-        picture: json.picture
-      });
-      return store.getItem(storageMap.user) as KindeUser;
+      const user = await getUserProfileFromJsUtils();
+
+      if (user) {
+        store.setItem(storageMap.user, {
+          id: user.id,
+          given_name: user.givenName,
+          family_name: user.familyName,
+          email: user.email,
+          picture: user.picture
+        });
+      }
+      return user as KindeUser;
     } catch (err) {
       console.error(err);
     }
