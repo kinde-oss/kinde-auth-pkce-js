@@ -12,13 +12,19 @@ const header = {
   alg: 'RS256'
 };
 
+// Use a payload that is always considered unexpired (exp in the future, with buffer)
+const unexpiredPayload = () => ({
+  ...accessTokenStub,
+  exp: Math.floor(Date.now() / 1000) + 3600
+});
+
 describe('isIDToken valid', () => {
   test('Throw error if token not provided', () => {
     expect(
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub}
+          payload: unexpiredPayload()
         },
         config
       )
@@ -106,7 +112,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub}
+          payload: unexpiredPayload()
         },
         {...config, aud: undefined}
       )
