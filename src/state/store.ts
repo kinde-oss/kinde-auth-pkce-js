@@ -1,5 +1,6 @@
 import type {Store} from './store.types';
-import {MemoryStorage, storageSettings, type StorageKeys} from '../kindeUtils';
+import {MemoryStorage, storageSettings, StorageKeys} from '../kindeUtils';
+import {storageMap} from '../constants';
 
 storageSettings.keyPrefix = 'kinde_';
 const memoryStorage = new MemoryStorage();
@@ -96,7 +97,7 @@ const createStore = (): Store => {
   };
 
   const setItems = async (
-    itemsToSet: Partial<Record<string, unknown>>
+    itemsToSet: Partial<Record<StorageKeys, unknown>>
   ): Promise<void> => {
     const serializedItems: Partial<Record<string, unknown>> = {};
     Object.entries(itemsToSet).forEach(([key, value]) => {
@@ -107,8 +108,8 @@ const createStore = (): Store => {
   };
 
   const getItems = (
-    ...itemKeys: string[]
-  ): Promise<Partial<Record<string, unknown>>> => {
+    ...itemKeys: StorageKeys[]
+  ): Promise<Partial<Record<StorageKeys, unknown>>> => {
     const result: Partial<Record<string, unknown>> = {};
     itemKeys.forEach((key) => {
       const value = getSessionItem(key);
@@ -127,16 +128,51 @@ const createStore = (): Store => {
     return Promise.resolve();
   };
 
+  const convertStorageMapToSessionKeys = (key: string): StorageKeys => {
+    switch (key) {
+      case storageMap.access_token:
+        return StorageKeys.accessToken;
+      case storageMap.id_token:
+        return StorageKeys.idToken;
+      case storageMap.refresh_token:
+        return StorageKeys.refreshToken;
+      default:
+        return key as StorageKeys;
+    }
+  };
+
   // Legacy methods for backward compatibility - these delegate to SessionManager methods
   const getItem = (key: string): unknown => {
-    return getSessionItem(key);
+    const sessionKey = convertStorageMapToSessionKeys(key);
+    const isOldKey = key !== sessionKey;
+
+    let value = getSessionItem(key);
+
+    if (value && isOldKey) {
+      // Data stored under old (storageMap) key → migrate to StorageKeys key and remove old key
+      setSessionItem(sessionKey, value);
+      removeSessionItem(key);
+      return value;
+    }
+
+    if (!value) {
+      value = getSessionItem(sessionKey);
+      if (value) {
+        setSessionItem(sessionKey, value);
+      }
+    }
+
+    return value;
   };
 
   const setItem = (key: string, value: unknown): void => {
-    setSessionItem(key, value);
+    const newKey = convertStorageMapToSessionKeys(key);
+    setSessionItem(newKey, value);
   };
 
   const removeItem = (key: string): void => {
+    const sessionKey = convertStorageMapToSessionKeys(key);
+    removeSessionItem(sessionKey);
     removeSessionItem(key);
   };
 
