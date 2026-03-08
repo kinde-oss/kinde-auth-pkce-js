@@ -97,6 +97,7 @@ export type OrgOptions = {
 
 export type AuthOptions = {
   org_code?: string;
+  invitation_code?: string;
   app_state?: Record<string, unknown>;
   authUrlParams?: object;
 };

@@ -1,13 +1,15 @@
+const nowInSeconds = Math.floor(Date.now() / 1000);
+
 const idTokenStub = {
   at_hash: '-p1234',
   aud: ['https://account.acme.com', '123456789'],
-  auth_time: 1683693508,
+  auth_time: nowInSeconds - 60,
   azp: '123456789',
   email: 'jaime@lannister.com',
-  exp: 1772323199,
+  exp: nowInSeconds + 60 * 60,
   family_name: 'Lannister',
   given_name: 'Jaime',
-  iat: 1683693508,
+  iat: nowInSeconds - 60,
   iss: 'https://account.acme.com',
   jti: '123-1-1-123-1234',
   name: 'Jaime Lannister',
