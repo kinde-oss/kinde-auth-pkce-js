@@ -1,9 +1,9 @@
 import {store} from '../state/store';
-import {accessTokenStub} from './accessTokenStub';
-import {idTokenStub} from './idTokenStub';
+import {getAccessTokenStub} from './accessTokenStub';
+import {getIdTokenStub} from './idTokenStub';
 
 const initializeStore = () => {
-  store.setItem('kinde_access_token', accessTokenStub);
-  store.setItem('kinde_id_token', idTokenStub);
+  store.setItem('kinde_access_token', getAccessTokenStub());
+  store.setItem('kinde_id_token', getIdTokenStub());
 };
 export {initializeStore};
