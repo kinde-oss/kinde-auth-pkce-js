@@ -1,35 +1,37 @@
-const nowInSeconds = Math.floor(Date.now() / 1000);
+const getAccessTokenStub = () => {
+  const nowInSeconds = Math.floor(Date.now() / 1000);
 
-const accessTokenStub = {
-  aud: ['stake:prod-api'],
-  azp: '1234567890',
-  exp: nowInSeconds + 60 * 60,
-  feature_flags: {
-    theme: {
-      t: 's',
-      v: 'pink'
+  return {
+    aud: ['stake:prod-api'],
+    azp: '1234567890',
+    exp: nowInSeconds + 60 * 60,
+    feature_flags: {
+      theme: {
+        t: 's',
+        v: 'pink'
+      },
+      is_dark_mode: {
+        t: 'b',
+        v: true
+      },
+      competitions_limit: {
+        t: 'i',
+        v: 5
+      }
     },
-    is_dark_mode: {
-      t: 'b',
-      v: true
-    },
-    competitions_limit: {
-      t: 'i',
-      v: 5
-    }
-  },
-  iat: nowInSeconds - 60,
-  iss: 'https://app.acme.com',
-  jti: '1234-12-12-12-123456',
-  org_code: 'org_1234567890',
-  permissions: [
-    'create:competitions',
-    'delete:competitions',
-    'view:stats',
-    'invite:users'
-  ],
-  scp: ['openid', 'profile', 'email', 'offline'],
-  sub: 'kp:1234567654345678'
+    iat: nowInSeconds - 60,
+    iss: 'https://app.acme.com',
+    jti: '1234-12-12-12-123456',
+    org_code: 'org_1234567890',
+    permissions: [
+      'create:competitions',
+      'delete:competitions',
+      'view:stats',
+      'invite:users'
+    ],
+    scp: ['openid', 'profile', 'email', 'offline'],
+    sub: 'kp:1234567654345678'
+  };
 };
 
-export {accessTokenStub};
+export {getAccessTokenStub};

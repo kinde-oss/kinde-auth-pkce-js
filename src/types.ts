@@ -95,11 +95,21 @@ export type OrgOptions = {
   app_state?: Record<string, unknown>;
 };
 
+export type AuthUrlParamValue =
+  | string
+  | number
+  | boolean
+  | bigint
+  | null
+  | undefined;
+
+export type AuthUrlParams = Record<string, AuthUrlParamValue>;
+
 export type AuthOptions = {
   org_code?: string;
   invitation_code?: string;
   app_state?: Record<string, unknown>;
-  authUrlParams?: object;
+  authUrlParams?: AuthUrlParams;
 };
 
 export type GetTokenOptions = {

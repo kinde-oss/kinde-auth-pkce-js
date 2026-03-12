@@ -296,6 +296,14 @@ const createKindeClient = async (
     return url.toString();
   };
 
+  const normalizeAuthUrlParams = (
+    authUrlParams: NonNullable<AuthOptions['authUrlParams']>
+  ) => {
+    return Object.fromEntries(
+      Object.entries(authUrlParams).map(([key, value]) => [key, String(value)])
+    );
+  };
+
   const handleRedirectToApp = async (q: URLSearchParams) => {
     const code = q.get('code')!;
     const state = q.get('state');
@@ -436,7 +444,7 @@ const createKindeClient = async (
     }
 
     const urlSearchParams = new URLSearchParams({
-      ...(authUrlParams as Record<string, string>),
+      ...normalizeAuthUrlParams(authUrlParams),
       ...searchParams
     });
 

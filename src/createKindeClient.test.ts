@@ -105,7 +105,7 @@ describe('createKindeClient invitation flow', () => {
   });
 
   it('starts a new auth flow when invitation_code is present in the URL', async () => {
-    setWindowLocation('?invitation_code=invite-123&foo=bar');
+    setWindowLocation('?invitation_code=invite-123&is_invitation=true&foo=bar');
 
     await createKindeClient({
       domain: 'https://example.kinde.com',

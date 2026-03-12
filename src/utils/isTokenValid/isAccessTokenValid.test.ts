@@ -1,4 +1,4 @@
-import {accessTokenStub} from '../../testData/accessTokenStub';
+import {getAccessTokenStub} from '../../testData/accessTokenStub';
 import {isTokenValid} from './isTokenValid';
 
 const config = {
@@ -12,13 +12,15 @@ const header = {
   alg: 'RS256'
 };
 
+const accessTokenStub = () => getAccessTokenStub();
+
 describe('isIDToken valid', () => {
   test('Throw error if token not provided', () => {
     expect(
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub}
+          payload: accessTokenStub()
         },
         config
       )
@@ -30,7 +32,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header: {typ: 'blah', alg: 'HS256'},
-          payload: {...accessTokenStub}
+          payload: accessTokenStub()
         },
         config
       );
@@ -44,7 +46,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, iss: null}
+          payload: {...accessTokenStub(), iss: null}
         },
         config
       );
@@ -56,7 +58,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, iss: 'mate'}
+          payload: {...accessTokenStub(), iss: 'mate'}
         },
         config
       );
@@ -70,7 +72,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, azp: null}
+          payload: {...accessTokenStub(), azp: null}
         },
         config
       );
@@ -82,7 +84,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, azp: 'mate'}
+          payload: {...accessTokenStub(), azp: 'mate'}
         },
         config
       );
@@ -94,7 +96,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, aud: 'mate'}
+          payload: {...accessTokenStub(), aud: 'mate'}
         },
         config
       );
@@ -106,7 +108,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub}
+          payload: accessTokenStub()
         },
         {...config, aud: undefined}
       )
@@ -118,7 +120,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, aud: ['mate']}
+          payload: {...accessTokenStub(), aud: ['mate']}
         },
         config
       );
@@ -132,7 +134,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub, exp: 1683697108}
+          payload: {...accessTokenStub(), exp: 1683697108}
         },
         config
       );
