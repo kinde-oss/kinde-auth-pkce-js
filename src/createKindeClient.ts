@@ -318,6 +318,21 @@ const createKindeClient = async (
     window.history.pushState({}, '', url);
   };
 
+  const getKindeOriginUrl = () => {
+    const url = new URL(window.location.toString());
+    url.searchParams.delete('invitation_code');
+    url.searchParams.delete('is_invitation');
+    return url.toString();
+  };
+
+  const normalizeAuthUrlParams = (
+    authUrlParams: NonNullable<AuthOptions['authUrlParams']>
+  ) => {
+    return Object.fromEntries(
+      Object.entries(authUrlParams).map(([key, value]) => [key, String(value)])
+    );
+  };
+
   const handleRedirectToApp = async (q: URLSearchParams) => {
     const code = q.get('code')!;
     const state = q.get('state');
@@ -415,11 +430,12 @@ const createKindeClient = async (
       is_create_org,
       org_name = '',
       org_code,
+      invitation_code,
       authUrlParams = {}
     } = options;
 
     if (!app_state.kindeOriginUrl) {
-      app_state.kindeOriginUrl = window.location.href;
+      app_state.kindeOriginUrl = getKindeOriginUrl();
     }
 
     const routeType =
@@ -473,6 +489,20 @@ const createKindeClient = async (
         appState: app_state
       })
     );
+    if (invitation_code) {
+      searchParams.invitation_code = invitation_code;
+      searchParams.is_invitation = 'true';
+    }
+
+    if (is_create_org) {
+      searchParams.is_create_org = String(is_create_org);
+      searchParams.org_name = org_name;
+    }
+
+    const urlSearchParams = new URLSearchParams({
+      ...normalizeAuthUrlParams(authUrlParams),
+      ...searchParams
+    });
 
     window.location.href = url.toString();
   };
@@ -577,6 +607,13 @@ const createKindeClient = async (
     // Is a redirect from Kinde Auth server
     if (isKindeRedirect(q)) {
       await handleRedirectToApp(q);
+      return;
+    }
+
+    const invitationCode = q.get('invitation_code');
+    if (invitationCode) {
+      await login({invitation_code: invitationCode});
+      return;
     } else {
       // For onload / new tab / page refresh
       if (isUseCookie || isUseLocalStorage) {

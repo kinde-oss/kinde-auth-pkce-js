@@ -1,4 +1,4 @@
-import {idTokenStub} from '../../testData/idTokenStub';
+import {getIdTokenStub as idTokenStub} from '../../testData/idTokenStub';
 import {isTokenValid} from './isTokenValid';
 
 const config = {
@@ -19,12 +19,12 @@ const unexpiredPayload = () => ({
 });
 
 describe('isIDToken valid', () => {
-  test('Throw error if token not provided', () => {
+  test('returns true for a valid ID token', () => {
     expect(
       isTokenValid(
         {
           header,
-          payload: unexpiredPayload()
+          payload: idTokenStub()
         },
         config
       )
@@ -36,7 +36,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header: {typ: 'blah', alg: 'HS256'},
-          payload: {...idTokenStub}
+          payload: idTokenStub()
         },
         config
       );
@@ -50,7 +50,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, iss: null}
+          payload: {...idTokenStub(), iss: null}
         },
         config
       );
@@ -62,7 +62,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, iss: 'mate'}
+          payload: {...idTokenStub(), iss: 'mate'}
         },
         config
       );
@@ -76,7 +76,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, azp: null}
+          payload: {...idTokenStub(), azp: null}
         },
         config
       );
@@ -88,7 +88,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, azp: 'mate'}
+          payload: {...idTokenStub(), azp: 'mate'}
         },
         config
       );
@@ -100,7 +100,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, aud: 'mate'}
+          payload: {...idTokenStub(), aud: 'mate'}
         },
         config
       );
@@ -112,7 +112,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, aud: ['mate']}
+          payload: {...idTokenStub(), aud: ['mate']}
         },
         config
       );
@@ -127,9 +127,8 @@ describe('isIDToken valid', () => {
         {
           header,
           payload: {
-            ...idTokenStub,
-            aud: ['https://account.acme.com', '123456789'],
-            exp: Math.floor(Date.now() / 1000) + 3600
+            ...idTokenStub(),
+            aud: ['https://account.acme.com', '123456789']
           }
         },
         config
@@ -142,7 +141,7 @@ describe('isIDToken valid', () => {
       isTokenValid(
         {
           header,
-          payload: {...idTokenStub, exp: 1683697108}
+          payload: {...idTokenStub(), exp: 1683697108}
         },
         config
       );

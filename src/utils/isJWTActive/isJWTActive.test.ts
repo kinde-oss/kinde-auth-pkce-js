@@ -1,5 +1,5 @@
 import {initializeStore} from '../../testData/initializeStore';
-import {accessTokenStub} from '../../testData/accessTokenStub';
+import {getAccessTokenStub} from '../../testData/accessTokenStub';
 import type {JWT} from './isJWTActive.types';
 import {isJWTActive} from './isJWTActive';
 import {store} from '../../state/store';
@@ -15,7 +15,7 @@ describe('isJWTActive util', () => {
   });
 
   test('returns false if provided token is expired', () => {
-    const expiredToken = {...accessTokenStub, exp: 949363200};
+    const expiredToken = {...getAccessTokenStub(), exp: 949363200};
     expect(isJWTActive(expiredToken)).toBe(false);
   });
 
