@@ -116,6 +116,11 @@ export type GetTokenOptions = {
   isForceRefresh?: boolean;
 };
 
+export type LogoutOptions = {
+  allSessions?: boolean;
+  redirectUrl?: string;
+};
+
 /** Options for redirecting to Kinde (login/register/createOrg). Supports legacy snake_case and @kinde/js-utils camelCase. */
 export type RedirectOptions = OrgOptions &
   AuthOptions &
@@ -125,6 +130,7 @@ export type RedirectOptions = OrgOptions &
   };
 
 export type KindeClient = {
+  getAccessToken: () => Promise<string | undefined>;
   getToken: (options?: GetTokenOptions) => Promise<string | undefined>;
   getIdToken: (options?: GetTokenOptions) => Promise<string | undefined>;
   isAuthenticated: () => Promise<boolean>;

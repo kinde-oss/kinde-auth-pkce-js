@@ -276,6 +276,8 @@ const createKindeClient = async (
       authUrlParams = {}
     } = options;
 
+    const params = new URLSearchParams(window.location.search);
+
     if (!app_state.kindeOriginUrl) {
       app_state.kindeOriginUrl = getKindeOriginUrl();
     }
@@ -285,8 +287,7 @@ const createKindeClient = async (
         ? IssuerRouteTypes.register
         : IssuerRouteTypes.login;
 
-    const optionsState: Record<string, string> = options?.state || {};
-    if (options) options.state = undefined;
+    const optionsState = params.get('state') || ('' as string);
 
     const authProps: LoginOptions & AuthOptions & {is_invitation?: string} = {
       audience,
@@ -300,7 +301,7 @@ const createKindeClient = async (
           : PromptTypes.login,
       state: base64UrlEncode(
         JSON.stringify({
-          kinde: {event: AuthEvent.login, ...optionsState}
+          kinde: {event: AuthEvent.login, state: optionsState}
         })
       ),
       redirectURL: getRedirectUrl(redirect_uri)
