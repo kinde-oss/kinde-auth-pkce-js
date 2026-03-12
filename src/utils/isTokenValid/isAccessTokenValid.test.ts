@@ -1,4 +1,4 @@
-import {getAccessTokenStub} from '../../testData/accessTokenStub';
+import {getAccessTokenStub as accessTokenStub} from '../../testData/accessTokenStub';
 import {isTokenValid} from './isTokenValid';
 
 const config = {
@@ -12,10 +12,8 @@ const header = {
   alg: 'RS256'
 };
 
-const accessTokenStub = () => getAccessTokenStub();
-
-describe('isIDToken valid', () => {
-  test('Throw error if token not provided', () => {
+describe('isAccessTokenValid', () => {
+  test('returns true for a valid access token', () => {
     expect(
       isTokenValid(
         {

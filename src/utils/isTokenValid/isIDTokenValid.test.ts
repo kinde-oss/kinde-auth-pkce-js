@@ -1,4 +1,4 @@
-import {getIdTokenStub} from '../../testData/idTokenStub';
+import {getIdTokenStub as idTokenStub} from '../../testData/idTokenStub';
 import {isTokenValid} from './isTokenValid';
 
 const config = {
@@ -12,10 +12,8 @@ const header = {
   alg: 'RS256'
 };
 
-const idTokenStub = () => getIdTokenStub();
-
 describe('isIDToken valid', () => {
-  test('Throw error if token not provided', () => {
+  test('returns true for a valid ID token', () => {
     expect(
       isTokenValid(
         {
