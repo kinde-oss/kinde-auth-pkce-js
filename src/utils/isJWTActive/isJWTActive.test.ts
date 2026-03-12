@@ -9,7 +9,7 @@ describe('isJWTActive util', () => {
     initializeStore();
     // Store decoded token with future exp so isJWTActive(store token) passes
     store.setItem('kinde_access_token', {
-      ...accessTokenStub,
+      ...getAccessTokenStub(),
       exp: Math.floor(Date.now() / 1000) + 3600
     });
   });

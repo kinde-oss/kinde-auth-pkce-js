@@ -12,24 +12,25 @@ jest.mock('./utils/index', () => ({
   isCustomDomain: jest.fn(() => false)
 }));
 
-jest.mock('@kinde/js-utils', () => ({
-  generatePortalUrl: jest.fn(),
-  GeneratePortalUrlParams: {},
-  MemoryStorage: jest.fn().mockImplementation(() => ({
-    setStore: jest.fn(),
-    getStore: jest.fn()
-  })),
-  setActiveStorage: jest.fn(),
-  StorageKeys: {
-    accessToken: 'accessToken'
-  }
-}));
+jest.mock('@kinde/js-utils', () => {
+  const actual =
+    jest.requireActual<typeof import('@kinde/js-utils')>('@kinde/js-utils');
+  return {
+    ...actual,
+    generatePortalUrl: jest.fn(),
+    setActiveStorage: jest.fn(),
+    setInsecureStorage: jest.fn(),
+    checkAuth: jest.fn().mockResolvedValue({success: false}),
+    navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
+      (global as typeof globalThis & {location: {href: string}}).location.href =
+        opts.url;
+    })
+  };
+});
 
 import createKindeClient from './createKindeClient';
-import {setupChallenge} from './utils/index';
 import {setActiveStorage} from '@kinde/js-utils';
 
-const mockSetupChallenge = setupChallenge as jest.Mock;
 const mockSetActiveStorage = setActiveStorage as jest.Mock;
 
 type StorageMock = {
@@ -81,11 +82,6 @@ const setWindowLocation = (search = '') => {
 
 describe('createKindeClient invitation flow', () => {
   beforeEach(() => {
-    mockSetupChallenge.mockResolvedValue({
-      state: 'state-123',
-      code_challenge: 'challenge-123',
-      url: new URL('https://example.kinde.com/oauth2/auth')
-    });
     mockSetActiveStorage.mockReset();
     Object.defineProperty(global, 'sessionStorage', {
       value: createStorageMock(),
@@ -111,13 +107,6 @@ describe('createKindeClient invitation flow', () => {
       domain: 'https://example.kinde.com',
       redirect_uri: 'http://localhost:3000/'
     });
-
-    expect(mockSetupChallenge).toHaveBeenCalledWith(
-      'https://example.kinde.com/oauth2/auth',
-      expect.objectContaining({
-        kindeOriginUrl: 'http://localhost:3000/?foo=bar'
-      })
-    );
 
     const redirectedUrl = new URL(
       (window as typeof globalThis & {location: Location}).location.href
