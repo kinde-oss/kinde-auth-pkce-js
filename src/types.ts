@@ -8,7 +8,7 @@ export type KindeUser = {
   picture: string | undefined;
 };
 
-export type KindeState = {
+export type KindeStateTokenBundle = {
   access_token: string;
   expires_in: number;
   id_token: string;

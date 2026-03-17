@@ -7,7 +7,10 @@ import {
   getIntegerFlag,
   getStringFlag,
   getBooleanFlag,
-  getFlag
+  getFlag,
+  isJWTActive,
+  JWT,
+  isTokenValid
 } from './utils/index';
 import {store} from './state/store';
 import type {
@@ -22,7 +25,8 @@ import type {
   RedirectOptions,
   ErrorProps,
   LogoutOptions,
-  GetTokenOptions
+  GetTokenOptions,
+  KindeStateTokenBundle
 } from './types';
 import {
   generateAuthUrl,
@@ -44,9 +48,13 @@ import {
   exchangeAuthCode,
   LoginOptions,
   UserProfile,
-  RefreshTokenResult
+  RefreshTokenResult,
+  isCustomDomain
 } from './kindeUtils';
 import {getRedirectUrl} from './utils/getRedirectUrl';
+import {hasCookie} from './utils/hasCookie/hasCookie';
+import {version} from './utils/version';
+import {jwtDecode} from 'jwt-decode';
 
 enum AuthEvent {
   login = 'login',
@@ -167,10 +175,10 @@ const createKindeClient = async (
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
   // // Indicates using a custom domain on a production environment
-  // const isUseCookie =
-  //   !isDevelopment &&
-  //   !is_dangerously_use_local_storage &&
-  //   isCustomDomain(domain);
+  const isUseCookie =
+    !isDevelopment &&
+    !is_dangerously_use_local_storage &&
+    isCustomDomain(domain);
 
   const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
 
@@ -192,10 +200,130 @@ const createKindeClient = async (
 
   /** @deprecated use `getAccessToken` instead */
   const getToken = async (options: GetTokenOptions = {}) => {
-    const legacyToken = store.getItem(storageMap.access_token);
-    const sessionToken = store.getSessionItem(StorageKeys.accessToken);
+    return await getTokenType(storageMap.access_token, options);
+  };
 
-    return (legacyToken || sessionToken) as string;
+  /** @deprecated only used for old getToken method which is now deprecated */
+  const getTokenType = async (
+    tokenType: storageMap,
+    options: GetTokenOptions
+  ) => {
+    const token = store.getItem(
+      storageMap.token_bundle
+    ) as KindeStateTokenBundle;
+
+    if (!token || options.isForceRefresh) {
+      return await useRefreshToken({tokenType});
+    }
+
+    const tokenToReturn = store.getItem(tokenType);
+    const isTokenActive = isJWTActive(tokenToReturn as JWT);
+
+    if (isTokenActive) {
+      return tokenType === storageMap.access_token
+        ? token.access_token
+        : token.id_token;
+    } else {
+      return await useRefreshToken({tokenType});
+    }
+  };
+
+  /* @deprecated only used for old getToken method which is now deprecated */
+  const useRefreshToken = async (
+    {tokenType} = {tokenType: storageMap.access_token}
+  ) => {
+    const localStorageRefreshToken = isUseLocalStorage
+      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
+
+    const isCallTokenEndpoint =
+      localStorageRefreshToken || (isUseCookie && hasCookie('_kbrte'));
+    if (isCallTokenEndpoint) {
+      try {
+        const response = await fetch(config.token_endpoint, {
+          method: 'POST',
+          ...(isUseCookie && {credentials: 'include'}),
+          headers: new Headers({
+            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Kinde-SDK': `
+            ${config._framework || 'JavaScript'}/${
+              config._frameworkVersion || version
+            }`
+          }),
+          body: new URLSearchParams({
+            client_id: config.client_id,
+            grant_type: 'refresh_token',
+            ...(!isUseCookie &&
+              localStorageRefreshToken && {
+                refresh_token: localStorageRefreshToken
+              })
+          })
+        });
+
+        const data = await response.json();
+
+        setStore(data);
+
+        if (tokenType === storageMap.id_token) {
+          return data.id_token;
+        }
+
+        return data.access_token;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  /* @deprecated only used for old getToken method which is now deprecated */
+  const setStore = (data: KindeStateTokenBundle & {error: string}) => {
+    if (!data || data.error) return;
+
+    const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
+    const idTokenHeader = jwtDecode(data.id_token, {header: true});
+    const accessToken = jwtDecode(data.access_token);
+    const accessTokenHeader = jwtDecode(data.access_token, {header: true});
+
+    const validatorOptions = {
+      iss: domain,
+      azp: clientId,
+      aud: audience
+    };
+    const isIDValid = isTokenValid(
+      {
+        payload: idToken,
+        header: idTokenHeader
+      },
+      {...validatorOptions, aud: clientId}
+    );
+    const isAccessValid = isTokenValid(
+      {
+        payload: accessToken,
+        header: accessTokenHeader
+      },
+      validatorOptions
+    );
+
+    if (isIDValid && isAccessValid) {
+      store.setItem(storageMap.token_bundle, data);
+      store.setItem(storageMap.access_token, accessToken);
+      store.setItem(storageMap.id_token, idToken);
+      if (idToken.sub) {
+        store.setItem(storageMap.user, {
+          id: idToken.sub,
+          given_name: idToken.given_name,
+          family_name: idToken.family_name,
+          email: idToken.email,
+          picture: idToken.picture
+        });
+      }
+
+      if (isUseLocalStorage) {
+        localStorage.setItem(storageMap.refresh_token, data.refresh_token);
+      } else {
+        store.setItem(storageMap.refresh_token, data.refresh_token);
+      }
+    }
   };
 
   const getAccessToken = async () => {
@@ -243,12 +371,6 @@ const createKindeClient = async (
     return {
       orgCode
     };
-  };
-
-  const clearUrlParams = () => {
-    const url = new URL(window.location.toString());
-    url.search = '';
-    window.history.pushState({}, '', url);
   };
 
   const getKindeOriginUrl = () => {
@@ -365,6 +487,7 @@ const createKindeClient = async (
         appState: {}
       });
       returnedState = {} as StateWithKinde;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       kindeState = {event: AuthEvent.login};
     }
 
@@ -514,32 +637,6 @@ const createKindeClient = async (
       });
     }
   };
-
-  // const logout = async () => {
-  //   const url = new URL(`${config.domain}/logout`);
-
-  //   try {
-  //     store.reset();
-
-  //     if (isUseLocalStorage) {
-  //       localStorageAdapter.removeSessionItem(StorageKeys.refreshToken);
-  //     }
-  //     store.removeItem(storageMap.refresh_token);
-  //     store.removeItem(storageMap.user);
-  //     store.removeItem(storageMap.access_token);
-  //     store.removeItem(storageMap.id_token);
-  //     store.removeItem(storageMap.token_bundle);
-
-  //     const searchParams = new URLSearchParams({
-  //       redirect: logout_uri
-  //     });
-  //     url.search = String(searchParams);
-
-  //     window.location.href = url.toString();
-  //   } catch (err) {
-  //     console.error(err);
-  //   }
-  // };
 
   const portal = async (
     options: Partial<Omit<GeneratePortalUrlParams, 'domain'>> = {}
