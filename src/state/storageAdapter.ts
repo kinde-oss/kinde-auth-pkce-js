@@ -10,6 +10,15 @@ import {
 } from '@kinde/js-utils';
 import {store} from './store';
 
+const KEY_MAP: Record<string, string> = {
+  accessToken: 'accessToken',
+  idToken: 'idToken',
+  refreshToken: 'kinde_refresh_token',
+  state: 'kinde_state',
+  nonce: 'kinde_nonce',
+  codeVerifier: 'kinde_code_verifier'
+};
+
 export class KindeStorageAdapter<V extends string = StorageKeys>
   extends SessionBase<V>
   implements SessionManager<V>
@@ -20,17 +29,7 @@ export class KindeStorageAdapter<V extends string = StorageKeys>
   // For accessToken and idToken, we store them directly with those keys (raw JWT strings)
   // For other keys, we map to our kinde_* format
   private mapKey(itemKey: V | StorageKeys): string {
-    const keyMap: Record<string, string> = {
-      // These are stored directly as raw JWT strings
-      accessToken: 'accessToken',
-      idToken: 'idToken',
-      refreshToken: 'kinde_refresh_token',
-      state: 'kinde_state',
-      nonce: 'kinde_nonce',
-      codeVerifier: 'kinde_code_verifier'
-    };
-
-    return keyMap[itemKey as string] || (itemKey as string);
+    return KEY_MAP[itemKey as string] || (itemKey as string);
   }
 
   getSessionItem<T = unknown>(itemKey: V | StorageKeys): T | unknown | null {

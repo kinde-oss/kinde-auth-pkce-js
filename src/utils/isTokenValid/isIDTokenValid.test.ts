@@ -12,12 +12,6 @@ const header = {
   alg: 'RS256'
 };
 
-// Use a payload that is always considered unexpired (exp in the future, with buffer)
-const unexpiredPayload = () => ({
-  ...idTokenStub,
-  exp: Math.floor(Date.now() / 1000) + 3600
-});
-
 describe('isIDToken valid', () => {
   test('returns true for a valid ID token', () => {
     expect(

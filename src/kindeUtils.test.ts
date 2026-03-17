@@ -9,7 +9,7 @@ describe('Utils export path', () => {
   test('should be able to import storageSettings from /utils', async () => {
     // Note: In the actual package, this would be imported from the built dist files
     // For testing purposes, we import directly from @kinde/js-utils
-    const {storageSettings} = await import('@kinde/js-utils');
+    const {storageSettings} = await import('./kindeUtils');
 
     expect(storageSettings).toBeDefined();
     expect(storageSettings.keyPrefix).toBeDefined();
@@ -17,7 +17,7 @@ describe('Utils export path', () => {
   });
 
   test('should be able to import MemoryStorage from /utils', async () => {
-    const {MemoryStorage} = await import('@kinde/js-utils');
+    const {MemoryStorage} = await import('./kindeUtils');
 
     expect(MemoryStorage).toBeDefined();
 
@@ -29,13 +29,13 @@ describe('Utils export path', () => {
   });
 
   test('should be able to import LocalStorage from /utils', async () => {
-    const {LocalStorage} = await import('@kinde/js-utils');
+    const {LocalStorage} = await import('./kindeUtils');
 
     expect(LocalStorage).toBeDefined();
   });
 
   test('should be able to import StorageKeys from /utils', async () => {
-    const {StorageKeys} = await import('@kinde/js-utils');
+    const {StorageKeys} = await import('./kindeUtils');
 
     expect(StorageKeys).toBeDefined();
     expect(StorageKeys.accessToken).toBe('accessToken');
@@ -44,7 +44,7 @@ describe('Utils export path', () => {
   });
 
   test('should export utility functions from @kinde/js-utils', async () => {
-    const utils = await import('@kinde/js-utils');
+    const utils = await import('./kindeUtils');
 
     // Check for some key utility functions
     expect(utils.base64UrlEncode).toBeDefined();

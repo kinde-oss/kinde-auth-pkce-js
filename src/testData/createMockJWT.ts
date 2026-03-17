@@ -2,14 +2,14 @@
  * Generate a mock JWT string for testing
  * This is NOT cryptographically secure - only for tests!
  */
-export const createMockJWT = (payload: Record<string, any>): string => {
+export const createMockJWT = (payload: Record<string, unknown>): string => {
   const header = {
     alg: 'RS256',
     typ: 'JWT',
     kid: 'test-key-id'
   };
 
-  const base64UrlEncode = (obj: Record<string, any>): string => {
+  const base64UrlEncode = (obj: Record<string, unknown>): string => {
     const json = JSON.stringify(obj);
     return Buffer.from(json)
       .toString('base64')

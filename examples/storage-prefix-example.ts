@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Example: Using storageSettings.keyPrefix
  *
@@ -21,6 +23,7 @@ const client1 = await createKindeClient({
 
 // Example 1: Set custom prefix before initializing the client
 // This is useful for multi-tenant applications or avoiding conflicts
+
 storageSettings.keyPrefix = 'MyApp_';
 
 const client2 = await createKindeClient({
