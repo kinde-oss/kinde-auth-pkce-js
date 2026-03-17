@@ -108,7 +108,6 @@ export default defineConfig([
       stubExpoSecureStore(),
       resolve(),
       typescript({
-        declaration: true,
         declarationDir: 'dist/types',
         rootDir: 'src'
       }),
