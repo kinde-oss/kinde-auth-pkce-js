@@ -37,9 +37,9 @@ const createStore = (): Store => {
 
   // Wrapper functions to handle JSON serialization/deserialization
   // MemoryStorage stores values as strings, so we need to serialize objects
-  const serializeValue = (value: unknown): string => {
+  const serializeValue = (value: unknown): string | null => {
     if (value === null || value === undefined) {
-      return JSON.stringify(value);
+      return null;
     }
     // For primitive types, just convert to string
     if (
@@ -82,6 +82,10 @@ const createStore = (): Store => {
     itemValue: T
   ): void => {
     const serialized = serializeValue(itemValue);
+
+    if (serialized === null || serialized === undefined) {
+      return;
+    }
     memoryStorage.setSessionItem(itemKey as StorageKeys, serialized);
     notifyListeners();
   };
@@ -148,18 +152,15 @@ const createStore = (): Store => {
 
     let value = getSessionItem(key);
 
-    if (value && isOldKey) {
+    if (value !== null && isOldKey) {
       // Data stored under old (storageMap) key → migrate to StorageKeys key and remove old key
       setSessionItem(sessionKey, value);
       removeSessionItem(key);
       return value;
     }
 
-    if (!value) {
+    if (value === null) {
       value = getSessionItem(sessionKey);
-      if (value) {
-        setSessionItem(sessionKey, value);
-      }
     }
 
     return value;
