@@ -410,6 +410,7 @@ const createKindeClient = async (
         : IssuerRouteTypes.login;
 
     const optionsState = params.get('state') || ('' as string);
+    const promptType = PromptTypes[options.prompt as keyof typeof PromptTypes];
 
     const authProps: LoginOptions & AuthOptions & {is_invitation?: string} = {
       audience,
@@ -417,10 +418,7 @@ const createKindeClient = async (
       scope: config.requested_scopes.split(' ') as Scopes[],
       supportsReauth: true,
       ...options,
-      prompt:
-        options.prompt === PromptTypes.create
-          ? PromptTypes.create
-          : PromptTypes.login,
+      prompt: promptType,
       state: base64UrlEncode(
         JSON.stringify({
           kinde: {event: AuthEvent.login, state: optionsState}
