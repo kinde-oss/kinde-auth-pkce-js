@@ -1,4 +1,4 @@
-import {storageMap} from './constants/index';
+import {SESSION_PREFIX, storageMap} from './constants/index';
 
 import {
   getClaim,
@@ -49,7 +49,8 @@ import {
   LoginOptions,
   UserProfile,
   RefreshTokenResult,
-  isCustomDomain
+  isCustomDomain,
+  base64UrlDecode
 } from './kindeUtils';
 import {getRedirectUrl} from './utils/getRedirectUrl';
 import {hasCookie} from './utils/hasCookie/hasCookie';
@@ -200,6 +201,10 @@ const createKindeClient = async (
 
   /** @deprecated use `getAccessToken` instead */
   const getToken = async (options: GetTokenOptions = {}) => {
+    console.warn(
+      '[Kinde] `getToken()` is deprecated and will be removed in a future release. ' +
+        'Please use `getAccessToken()` instead.'
+    );
     return await getTokenType(storageMap.access_token, options);
   };
 
@@ -328,14 +333,14 @@ const createKindeClient = async (
 
   const getAccessToken = async () => {
     // js-utils (exchangeAuthCode, checkAuth) stores under StorageKeys.accessToken
-    const sessionToken = store.getSessionItem(StorageKeys.accessToken);
+    const sessionToken = await store.getSessionItem(StorageKeys.accessToken);
     const legacyToken = store.getItem(storageMap.access_token);
     return (sessionToken || legacyToken) as string;
   };
 
   const getIdToken = async () => {
     // js-utils stores under StorageKeys.idToken
-    const sessionToken = store.getSessionItem(StorageKeys.idToken);
+    const sessionToken = await store.getSessionItem(StorageKeys.idToken);
     const legacyToken = store.getItem(storageMap.id_token);
     return (sessionToken || legacyToken) as string;
   };
@@ -388,6 +393,9 @@ const createKindeClient = async (
     );
   };
 
+  const appStateSessionKey = (oauthState: string) =>
+    `${SESSION_PREFIX}-app-state-${oauthState}`;
+
   const redirectToKinde = async (options: RedirectOptions) => {
     const {
       app_state = {},
@@ -395,7 +403,8 @@ const createKindeClient = async (
       is_create_org,
       org_name = '',
       invitation_code,
-      authUrlParams = {}
+      authUrlParams = {},
+      ...restRedirectOptions
     } = options;
 
     const params = new URLSearchParams(window.location.search);
@@ -409,28 +418,32 @@ const createKindeClient = async (
         ? IssuerRouteTypes.register
         : IssuerRouteTypes.login;
 
+    const eventType =
+      options.prompt === PromptTypes.create
+        ? AuthEvent.register
+        : AuthEvent.login;
+
     const optionsState = params.get('state') || ('' as string);
     const promptType = PromptTypes[options.prompt as keyof typeof PromptTypes];
 
-    const authProps: LoginOptions & AuthOptions & {is_invitation?: string} = {
+    const authProps: LoginOptions & AuthOptions = {
       audience,
       clientId: client_id,
       scope: config.requested_scopes.split(' ') as Scopes[],
       supportsReauth: true,
-      ...options,
+      ...restRedirectOptions,
       prompt: promptType,
       state: base64UrlEncode(
         JSON.stringify({
-          kinde: {event: AuthEvent.login, state: optionsState}
+          kinde: {event: eventType, state: optionsState}
         })
       ),
       redirectURL: getRedirectUrl(redirect_uri)
     };
 
-    const authUrl = await generateAuthUrl(config.domain, routeType, authProps);
     if (invitation_code) {
-      authProps.invitation_code = invitation_code;
-      authProps.is_invitation = 'true';
+      authProps.invitationCode = invitation_code;
+      authProps.isInvitation = true;
     }
 
     if (is_create_org) {
@@ -438,15 +451,29 @@ const createKindeClient = async (
       authProps.orgName = org_name;
     }
 
-    const searchRecord: Record<string, string> = {};
-    for (const [k, v] of Object.entries({
-      ...normalizeAuthUrlParams(authUrlParams),
-      ...authProps
-    })) {
-      if (v === undefined) continue;
-      searchRecord[k] = Array.isArray(v) ? v.join(' ') : String(v);
+    const authUrl = await generateAuthUrl(config.domain, routeType, authProps);
+
+    // mergeAuthUrlParams only — do not replace the query string with authProps keys:
+    // generateAuthUrl already maps redirectURL → redirect_uri, clientId → client_id, etc.
+    for (const [k, v] of Object.entries(
+      normalizeAuthUrlParams(authUrlParams)
+    )) {
+      authUrl.url.searchParams.set(k, String(v));
     }
-    authUrl.url.search = new URLSearchParams(searchRecord).toString();
+
+    const oauthState =
+      authUrl.url.searchParams.get('state') || authUrl.state || '';
+    if (oauthState) {
+      try {
+        sessionStorage.setItem(
+          appStateSessionKey(oauthState),
+          JSON.stringify(app_state)
+        );
+      } catch {
+        // quota / private mode — callback will not receive app_state
+      }
+    }
+
     try {
       navigateToKinde({
         url: authUrl.url.toString(),
@@ -467,7 +494,22 @@ const createKindeClient = async (
   };
 
   const processAuthResult = async (searchParams: URLSearchParams) => {
-    const decoded = atob(searchParams.get('state') || '');
+    const oauthStateParam = searchParams.get('state') || '';
+    let storedAppState: Record<string, unknown> = {};
+    if (oauthStateParam) {
+      const key = appStateSessionKey(oauthStateParam);
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (raw) {
+          storedAppState = JSON.parse(raw) as Record<string, unknown>;
+        }
+      } catch {
+        storedAppState = {};
+      }
+      sessionStorage.removeItem(key);
+    }
+
+    const decoded = base64UrlDecode(oauthStateParam);
     let returnedState: StateWithKinde;
     let kindeState: KindeState;
 
@@ -481,8 +523,8 @@ const createKindeClient = async (
       on_error_callback?.({
         error: 'ERR_STATE_PARSE',
         errorDescription: String(error),
-        state: searchParams.get('state') || '',
-        appState: {}
+        state: oauthStateParam,
+        appState: storedAppState
       });
       returnedState = {} as StateWithKinde;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -501,31 +543,22 @@ const createKindeClient = async (
       if (codeResponse.success) {
         const user = await getUserProfile();
         if (user) {
-          on_redirect_callback?.(user, {
-            ...returnedState,
-            kinde: undefined
-          });
+          on_redirect_callback?.(user, storedAppState);
         }
       } else {
         on_error_callback?.({
           error: 'ERR_CODE_EXCHANGE',
           errorDescription: codeResponse.error,
-          state: searchParams.get('state') || '',
-          appState: {
-            ...returnedState,
-            kinde: undefined
-          }
+          state: oauthStateParam,
+          appState: storedAppState
         });
       }
     } catch (error) {
       on_error_callback?.({
         error: 'ERR_POPUP_AUTH',
         errorDescription: String(error),
-        state: searchParams.get('state') || '',
-        appState: {
-          ...returnedState,
-          kinde: undefined
-        }
+        state: oauthStateParam,
+        appState: storedAppState
       } as ErrorProps);
     }
   };
@@ -611,7 +644,14 @@ const createKindeClient = async (
         store.removeSessionItem(StorageKeys.idToken),
         store.removeSessionItem(StorageKeys.accessToken),
         store.removeSessionItem(StorageKeys.refreshToken),
-        localStorageAdapter.removeSessionItem(StorageKeys.refreshToken)
+        localStorageAdapter.removeSessionItem(StorageKeys.refreshToken),
+        store.removeItems(
+          storageMap.refresh_token,
+          storageMap.access_token,
+          storageMap.id_token,
+          storageMap.user,
+          storageMap.token_bundle
+        )
       ]);
 
       try {
