@@ -125,6 +125,7 @@ const createStore = (): Store => {
   };
 
   const removeItems = (...itemKeys: string[]): Promise<void> => {
+    // Intentionally removes literal keys only (no storageMap -> StorageKeys translation).
     itemKeys.forEach((key) => {
       removeSessionItem(key);
     });

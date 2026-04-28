@@ -36,6 +36,10 @@ export type KindeClientOptions = {
     user: KindeUser,
     appState?: Record<string, unknown>
   ) => void;
+  on_session_restore_callback?: (
+    user: KindeUser,
+    appState?: Record<string, unknown>
+  ) => void;
   scope?: string;
   proxy_redirect_uri?: string;
   _framework?: string;

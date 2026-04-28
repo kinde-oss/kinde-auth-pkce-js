@@ -21,6 +21,8 @@ jest.mock('./kindeUtils', () => {
     setActiveStorage: jest.fn(),
     setInsecureStorage: jest.fn(),
     checkAuth: jest.fn().mockResolvedValue({success: false}),
+    exchangeAuthCode: jest.fn().mockResolvedValue({success: true}),
+    getUserProfile: jest.fn().mockResolvedValue(undefined),
     navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
       (global as typeof globalThis & {location: {href: string}}).location.href =
         opts.url;
@@ -29,13 +31,20 @@ jest.mock('./kindeUtils', () => {
 });
 
 import createKindeClient from './createKindeClient';
-import {setActiveStorage, checkAuth} from './kindeUtils';
+import {
+  setActiveStorage,
+  checkAuth,
+  exchangeAuthCode,
+  getUserProfile
+} from './kindeUtils';
 import {store} from './state/store';
-import {storageMap} from './constants';
+import {SESSION_PREFIX, storageMap} from './constants';
 import {isJWTActive} from './utils/index';
 
 const mockSetActiveStorage = setActiveStorage as jest.Mock;
 const mockCheckAuth = checkAuth as jest.Mock;
+const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
+const mockGetUserProfile = getUserProfile as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 
 type StorageMock = {
@@ -295,5 +304,209 @@ describe('refresh token storage routing (expired access → refresh recovery)', 
       storageMap.refresh_token,
       expect.anything()
     );
+  });
+});
+
+describe('on_redirect_callback semantics', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockExchangeAuthCode.mockClear();
+    mockGetUserProfile.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('fires callback after code exchange with stored app_state', async () => {
+    const state = b64url({kinde: {event: 'login'}});
+    setWindowLocation(`?code=auth-code&state=${state}`);
+
+    const ss = global.sessionStorage as unknown as StorageMock;
+    const storedAppState = {returnTo: '/dashboard'};
+    ss.getItem.mockImplementation((key: string) =>
+      key === `${SESSION_PREFIX}-app-state-${state}`
+        ? JSON.stringify(storedAppState)
+        : null
+    );
+    mockExchangeAuthCode.mockResolvedValue({success: true});
+    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    const onRedirect = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_redirect_callback: onRedirect
+    });
+
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(onRedirect).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'kp:user-1'}),
+      storedAppState
+    );
+  });
+
+  it('does not fire callback on silent restore page load', async () => {
+    setWindowLocation();
+    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    const onRedirect = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_redirect_callback: onRedirect
+    });
+
+    expect(onRedirect).not.toHaveBeenCalled();
+  });
+});
+
+describe('on_session_restore_callback semantics', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockExchangeAuthCode.mockClear();
+    mockGetUserProfile.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('fires session restore callback on non-redirect authenticated load', async () => {
+    setWindowLocation();
+    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    const onSessionRestore = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_session_restore_callback: onSessionRestore
+    });
+
+    expect(onSessionRestore).toHaveBeenCalledTimes(1);
+    expect(onSessionRestore).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'kp:user-1'}),
+      expect.objectContaining({
+        kindeOriginUrl: 'http://localhost:3000/',
+        kinde: {event: 'session_restore'}
+      })
+    );
+  });
+
+  it('does not fire session restore callback on redirect handling load', async () => {
+    const state = b64url({kinde: {event: 'login'}});
+    setWindowLocation(`?code=auth-code&state=${state}`);
+    const ss = global.sessionStorage as unknown as StorageMock;
+    ss.getItem.mockImplementation(() =>
+      JSON.stringify({returnTo: '/dashboard'})
+    );
+    mockExchangeAuthCode.mockResolvedValue({success: true});
+    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    const onSessionRestore = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_session_restore_callback: onSessionRestore
+    });
+
+    expect(onSessionRestore).not.toHaveBeenCalled();
+  });
+});
+
+describe('legacy localStorage refresh key migration', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockExchangeAuthCode.mockClear();
+    mockGetUserProfile.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('migrates old localStorage refresh key before checkAuth', async () => {
+    setWindowLocation();
+    const ls = global.localStorage as unknown as StorageMock;
+    ls.getItem.mockImplementation((key: string) => {
+      if (key === storageMap.refresh_token) return 'legacy-refresh-token';
+      if (key === 'kinde_refreshToken0') return null;
+      return null;
+    });
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(ls.setItem).toHaveBeenCalledWith(
+      'kinde_refreshToken0',
+      'legacy-refresh-token'
+    );
+    expect(ls.removeItem).toHaveBeenCalledWith(storageMap.refresh_token);
+    expect(mockCheckAuth).toHaveBeenCalledWith({
+      domain: 'https://example.kinde.com',
+      clientId: 'spa@live'
+    });
+  });
+
+  it('does not overwrite chunked refresh key when it already exists', async () => {
+    setWindowLocation();
+    const ls = global.localStorage as unknown as StorageMock;
+    ls.getItem.mockImplementation((key: string) => {
+      if (key === storageMap.refresh_token) return 'legacy-refresh-token';
+      if (key === 'kinde_refreshToken0') return 'new-refresh-token';
+      return null;
+    });
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(ls.setItem).not.toHaveBeenCalledWith(
+      'kinde_refreshToken0',
+      'legacy-refresh-token'
+    );
+    expect(ls.removeItem).toHaveBeenCalledWith(storageMap.refresh_token);
   });
 });

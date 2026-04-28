@@ -135,6 +135,7 @@ const createKindeClient = async (
     redirect_uri,
     logout_uri = redirect_uri,
     on_redirect_callback,
+    on_session_restore_callback,
     on_error_callback,
     scope = 'openid profile email offline',
     proxy_redirect_uri,
@@ -203,7 +204,7 @@ const createKindeClient = async (
   const getToken = async (options: GetTokenOptions = {}) => {
     console.warn(
       '[Kinde] `getToken()` is deprecated and will be removed in a future release. ' +
-        'Please use `getAccessToken()` instead.'
+        'It may return undefined with the new auth flow. Please use `getAccessToken()` instead.'
     );
     return await getTokenType(storageMap.access_token, options);
   };
@@ -510,14 +511,8 @@ const createKindeClient = async (
     }
 
     const decoded = base64UrlDecode(oauthStateParam);
-    let returnedState: StateWithKinde;
-    let kindeState: KindeState;
-
     try {
-      returnedState = JSON.parse(decoded);
-      kindeState = Object.assign(
-        returnedState.kinde || {event: PromptTypes.login}
-      );
+      JSON.parse(decoded) as StateWithKinde;
     } catch (error) {
       console.error('Error parsing state:', error);
       on_error_callback?.({
@@ -526,9 +521,6 @@ const createKindeClient = async (
         state: oauthStateParam,
         appState: storedAppState
       });
-      returnedState = {} as StateWithKinde;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      kindeState = {event: AuthEvent.login};
     }
 
     try {
@@ -704,9 +696,25 @@ const createKindeClient = async (
     }
   };
 
+  const migrateLegacyRefreshTokenKey = () => {
+    if (!isUseLocalStorage) return;
+    const oldToken = localStorage.getItem(storageMap.refresh_token);
+    if (!oldToken) return;
+
+    const newToken = localStorageAdapter.getSessionItem(
+      StorageKeys.refreshToken
+    );
+
+    if (!newToken) {
+      localStorageAdapter.setSessionItem(StorageKeys.refreshToken, oldToken);
+    }
+
+    localStorage.removeItem(storageMap.refresh_token);
+  };
   const init = async () => {
     try {
       try {
+        migrateLegacyRefreshTokenKey();
         // This handles the refresh token
         await checkAuth({domain, clientId: client_id});
       } catch (err) {
@@ -764,18 +772,18 @@ const createKindeClient = async (
         return;
       }
 
-      try {
-        const user = await getUserProfile();
-        if (user) {
-          on_redirect_callback?.(user, {
-            kindeOriginUrl: window.location.href,
-            kinde: {event: AuthEvent.login, state: params.get('state') || ''}
-          });
-        }
-      } catch (error) {
-        console.warn('Error getting user profile', error);
-        if (on_error_callback) {
-          on_error_callback({
+      if (on_session_restore_callback) {
+        try {
+          const user = await getUserProfile();
+          if (user) {
+            on_session_restore_callback(user, {
+              kindeOriginUrl: window.location.href,
+              kinde: {event: 'session_restore'}
+            });
+          }
+        } catch (error) {
+          console.warn('Error getting user profile', error);
+          on_error_callback?.({
             error: 'ERR_GET_USER_PROFILE',
             errorDescription: String(error),
             state: '',
@@ -783,6 +791,8 @@ const createKindeClient = async (
           });
         }
       }
+
+      return;
     } catch (error) {
       console.warn('Error in init', error);
       if (on_error_callback) {
