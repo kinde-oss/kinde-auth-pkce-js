@@ -521,6 +521,7 @@ const createKindeClient = async (
         state: oauthStateParam,
         appState: storedAppState
       });
+      return;
     }
 
     try {
