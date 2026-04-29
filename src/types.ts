@@ -140,11 +140,11 @@ export type KindeClient = {
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
-  login: (options?: AuthOptions) => Promise<void>;
+  login: (options?: RedirectOptions) => Promise<void>;
   logout: (options?: string | LogoutOptions) => Promise<void>;
   portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
-  register: (options?: AuthOptions) => Promise<void>;
-  createOrg: (options?: OrgOptions) => Promise<void>;
+  register: (options?: RedirectOptions) => Promise<void>;
+  createOrg: (options?: RedirectOptions) => Promise<void>;
   getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
   getFlag: <T extends KindeFlagTypeCode>(
     code: string,

@@ -332,18 +332,31 @@ const createKindeClient = async (
     }
   };
 
+  const readLegacyRawToken = (
+    key: storageMap.access_token | storageMap.id_token
+  ): string | undefined => {
+    const value = store.getItem(key);
+    if (typeof value === 'string') return value;
+    const bundle = store.getItem(storageMap.token_bundle) as
+      | KindeStateTokenBundle
+      | undefined;
+    return key === storageMap.access_token
+      ? bundle?.access_token
+      : bundle?.id_token;
+  };
+
   const getAccessToken = async () => {
     // js-utils (exchangeAuthCode, checkAuth) stores under StorageKeys.accessToken
     const sessionToken = await store.getSessionItem(StorageKeys.accessToken);
-    const legacyToken = store.getItem(storageMap.access_token);
-    return (sessionToken || legacyToken) as string;
+    const legacyToken = readLegacyRawToken(storageMap.access_token);
+    return (sessionToken || legacyToken) as string | undefined;
   };
 
   const getIdToken = async () => {
     // js-utils stores under StorageKeys.idToken
     const sessionToken = await store.getSessionItem(StorageKeys.idToken);
-    const legacyToken = store.getItem(storageMap.id_token);
-    return (sessionToken || legacyToken) as string;
+    const legacyToken = readLegacyRawToken(storageMap.id_token);
+    return (sessionToken || legacyToken) as string | undefined;
   };
 
   const isAuthenticated = async () => {
@@ -456,9 +469,19 @@ const createKindeClient = async (
 
     // mergeAuthUrlParams only — do not replace the query string with authProps keys:
     // generateAuthUrl already maps redirectURL → redirect_uri, clientId → client_id, etc.
+    const reservedParams = new Set([
+      'state',
+      'client_id',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'code_challenge',
+      'code_challenge_method'
+    ]);
     for (const [k, v] of Object.entries(
       normalizeAuthUrlParams(authUrlParams)
     )) {
+      if (reservedParams.has(k)) continue;
       authUrl.url.searchParams.set(k, String(v));
     }
 
