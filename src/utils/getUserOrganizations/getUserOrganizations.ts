@@ -1,10 +1,18 @@
-import {getClaimValue} from '../getClaimValue/getClaimValue';
+import {getUserOrganizationsSync} from '@kinde/js-utils';
+
+// Import to ensure storage adapter is initialized
+import '../../state/initStorage';
 
 const getUserOrganizations = (): {orgCodes: string[]} => {
-  const orgCodes = (getClaimValue('org_codes', 'id_token') ?? []) as string[];
-  return {
-    orgCodes
-  };
+  try {
+    const orgCodes = getUserOrganizationsSync() ?? [];
+    return {
+      orgCodes
+    };
+  } catch (error) {
+    console.error('Error getting user organizations:', error);
+    return {orgCodes: []};
+  }
 };
 
 export {getUserOrganizations};

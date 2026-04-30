@@ -1,12 +1,6 @@
-import {version} from './utils/version';
 import {SESSION_PREFIX, storageMap} from './constants/index';
-import {jwtDecode} from 'jwt-decode';
-import {hasCookie} from './utils/hasCookie/hasCookie';
 
 import {
-  type JWT,
-  isJWTActive,
-  setupChallenge,
   getClaim,
   getClaimValue,
   getUserOrganizations,
@@ -14,8 +8,9 @@ import {
   getStringFlag,
   getBooleanFlag,
   getFlag,
-  isTokenValid,
-  isCustomDomain
+  isJWTActive,
+  JWT,
+  isTokenValid
 } from './utils/index';
 import {store} from './state/store';
 import type {
@@ -25,20 +20,95 @@ import type {
   KindeOrganization,
   KindePermission,
   KindePermissions,
-  KindeState,
   KindeUser,
   OrgOptions,
   RedirectOptions,
   ErrorProps,
-  GetTokenOptions
+  LogoutOptions,
+  GetTokenOptions,
+  KindeStateTokenBundle
 } from './types';
 import {
+  generateAuthUrl,
   generatePortalUrl,
   GeneratePortalUrlParams,
-  MemoryStorage,
+  IssuerRouteTypes,
+  PromptTypes,
+  Scopes,
   setActiveStorage,
-  StorageKeys
-} from '@kinde/js-utils';
+  StorageKeys,
+  isAuthenticated as isAuthenticatedFromJsUtils,
+  getUserProfile as getUserProfileFromJsUtils,
+  LocalStorage,
+  checkAuth,
+  setInsecureStorage,
+  LoginMethodParams,
+  base64UrlEncode,
+  navigateToKinde,
+  exchangeAuthCode,
+  LoginOptions,
+  UserProfile,
+  RefreshTokenResult,
+  isCustomDomain,
+  base64UrlDecode
+} from './kindeUtils';
+import {getRedirectUrl} from './utils/getRedirectUrl';
+import {hasCookie} from './utils/hasCookie/hasCookie';
+import {version} from './utils/version';
+import {jwtDecode} from 'jwt-decode';
+
+enum AuthEvent {
+  login = 'login',
+  logout = 'logout',
+  register = 'register',
+  tokenRefreshed = 'tokenRefreshed'
+}
+
+type StateWithKinde = StringProperties & {
+  kinde: KindeState;
+};
+type KindeState = {event: AuthEvent};
+
+type StringProperties = {
+  [P in string as P extends 'kinde' ? never : P]: string;
+};
+
+type EventTypes = {
+  (
+    event: AuthEvent.tokenRefreshed,
+    state: RefreshTokenResult,
+    context: KindeClient
+  ): void;
+  (
+    event: AuthEvent,
+    state: Record<string, unknown>,
+    context: KindeClient
+  ): void;
+};
+
+export type KindeCallbacks = {
+  onSuccess?: (
+    user: UserProfile,
+    state: Record<string, unknown>,
+    context: KindeClient
+  ) => void;
+  onError?: (
+    props: ErrorProps,
+    state: Record<string, string>,
+    context: KindeClient
+  ) => void;
+  onEvent?: EventTypes;
+};
+
+const isSameOriginOpener = (): boolean => {
+  try {
+    const opener = window.opener;
+    if (!opener || opener.closed) return false;
+    return opener.location.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
 
 const createKindeClient = async (
   options: KindeClientOptions
@@ -51,6 +121,12 @@ const createKindeClient = async (
     throw Error('The Kinde SDK must be initiated with an object');
   }
 
+  const params = new URLSearchParams(window.location.search);
+  const hasInvitationCode = params.has('invitation_code');
+  const invitationCode = hasInvitationCode
+    ? params.get('invitation_code')
+    : null;
+
   const {
     audience,
     client_id: clientId,
@@ -59,6 +135,7 @@ const createKindeClient = async (
     redirect_uri,
     logout_uri = redirect_uri,
     on_redirect_callback,
+    on_session_restore_callback,
     on_error_callback,
     scope = 'openid profile email offline',
     proxy_redirect_uri,
@@ -93,18 +170,23 @@ const createKindeClient = async (
   }
 
   const client_id = clientId || 'spa@live';
+  setActiveStorage(store);
 
   // If code is running on localhost, it's a development environment
   const isDevelopment =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
-  // Indicates using a custom domain on a production environment
+  // // Indicates using a custom domain on a production environment
   const isUseCookie =
     !isDevelopment &&
     !is_dangerously_use_local_storage &&
     isCustomDomain(domain);
 
   const isUseLocalStorage = isDevelopment || is_dangerously_use_local_storage;
+
+  // Use LocalStorage from @kinde/js-utils for persistent storage
+  const localStorageAdapter = new LocalStorage();
+  setInsecureStorage(localStorageAdapter);
 
   const config = {
     audience,
@@ -118,7 +200,89 @@ const createKindeClient = async (
     _frameworkVersion
   };
 
-  const setStore = (data: KindeState & {error: string}) => {
+  /** @deprecated use `getAccessToken` instead */
+  const getToken = async (options: GetTokenOptions = {}) => {
+    console.warn(
+      '[Kinde] `getToken()` is deprecated and will be removed in a future release. ' +
+        'It may return undefined with the new auth flow. Please use `getAccessToken()` instead.'
+    );
+    return await getTokenType(storageMap.access_token, options);
+  };
+
+  /** @deprecated only used for old getToken method which is now deprecated */
+  const getTokenType = async (
+    tokenType: storageMap,
+    options: GetTokenOptions
+  ) => {
+    const token = store.getItem(
+      storageMap.token_bundle
+    ) as KindeStateTokenBundle;
+
+    if (!token || options.isForceRefresh) {
+      return await useRefreshToken({tokenType});
+    }
+
+    const tokenToReturn = store.getItem(tokenType);
+    const isTokenActive = isJWTActive(tokenToReturn as JWT);
+
+    if (isTokenActive) {
+      return tokenType === storageMap.access_token
+        ? token.access_token
+        : token.id_token;
+    } else {
+      return await useRefreshToken({tokenType});
+    }
+  };
+
+  /* @deprecated only used for old getToken method which is now deprecated */
+  const useRefreshToken = async (
+    {tokenType} = {tokenType: storageMap.access_token}
+  ) => {
+    const localStorageRefreshToken = isUseLocalStorage
+      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
+
+    const isCallTokenEndpoint =
+      localStorageRefreshToken || (isUseCookie && hasCookie('_kbrte'));
+    if (isCallTokenEndpoint) {
+      try {
+        const response = await fetch(config.token_endpoint, {
+          method: 'POST',
+          ...(isUseCookie && {credentials: 'include'}),
+          headers: new Headers({
+            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Kinde-SDK': `
+            ${config._framework || 'JavaScript'}/${
+              config._frameworkVersion || version
+            }`
+          }),
+          body: new URLSearchParams({
+            client_id: config.client_id,
+            grant_type: 'refresh_token',
+            ...(!isUseCookie &&
+              localStorageRefreshToken && {
+                refresh_token: localStorageRefreshToken
+              })
+          })
+        });
+
+        const data = await response.json();
+
+        setStore(data);
+
+        if (tokenType === storageMap.id_token) {
+          return data.id_token;
+        }
+
+        return data.access_token;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  /* @deprecated only used for old getToken method which is now deprecated */
+  const setStore = (data: KindeStateTokenBundle & {error: string}) => {
     if (!data || data.error) return;
 
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
@@ -168,94 +332,39 @@ const createKindeClient = async (
     }
   };
 
-  const useRefreshToken = async (
-    {tokenType} = {tokenType: storageMap.access_token}
-  ) => {
-    const localStorageRefreshToken = isUseLocalStorage
-      ? (localStorage.getItem(storageMap.refresh_token) as string)
-      : (store.getItem(storageMap.refresh_token) as string);
-
-    const isCallTokenEndpoint =
-      localStorageRefreshToken || (isUseCookie && hasCookie('_kbrte'));
-    if (isCallTokenEndpoint) {
-      try {
-        const response = await fetch(config.token_endpoint, {
-          method: 'POST',
-          ...(isUseCookie && {credentials: 'include'}),
-          headers: new Headers({
-            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Kinde-SDK': `
-            ${config._framework || 'JavaScript'}/${
-              config._frameworkVersion || version
-            }`
-          }),
-          body: new URLSearchParams({
-            client_id: config.client_id,
-            grant_type: 'refresh_token',
-            ...(!isUseCookie &&
-              localStorageRefreshToken && {
-                refresh_token: localStorageRefreshToken
-              })
-          })
-        });
-
-        const data = await response.json();
-        setStore(data);
-
-        if (tokenType === storageMap.id_token) {
-          return data.id_token;
-        }
-
-        return data.access_token;
-      } catch (err) {
-        console.error(err);
-      }
-    }
+  const readLegacyRawToken = (
+    key: storageMap.access_token | storageMap.id_token
+  ): string | undefined => {
+    const value = store.getItem(key);
+    if (typeof value === 'string') return value;
+    const bundle = store.getItem(storageMap.token_bundle) as
+      | KindeStateTokenBundle
+      | undefined;
+    return key === storageMap.access_token
+      ? bundle?.access_token
+      : bundle?.id_token;
   };
 
-  const getTokenType = async (
-    tokenType: storageMap,
-    options: GetTokenOptions
-  ) => {
-    const token = store.getItem(storageMap.token_bundle) as KindeState;
-
-    if (!token || options.isForceRefresh) {
-      return await useRefreshToken({tokenType});
-    }
-
-    const tokenToReturn = store.getItem(tokenType);
-    const isTokenActive = isJWTActive(tokenToReturn as JWT);
-
-    if (isTokenActive) {
-      return tokenType === storageMap.access_token
-        ? token.access_token
-        : token.id_token;
-    } else {
-      return await useRefreshToken({tokenType});
-    }
+  const getAccessToken = async () => {
+    // js-utils (exchangeAuthCode, checkAuth) stores under StorageKeys.accessToken
+    const sessionToken = await store.getSessionItem(StorageKeys.accessToken);
+    const legacyToken = readLegacyRawToken(storageMap.access_token);
+    return (sessionToken || legacyToken) as string | undefined;
   };
 
-  const getToken = async (options: GetTokenOptions = {}) => {
-    return await getTokenType(storageMap.access_token, options);
-  };
-
-  const getIdToken = async (options: GetTokenOptions = {}) => {
-    return await getTokenType(storageMap.id_token, options);
+  const getIdToken = async () => {
+    // js-utils stores under StorageKeys.idToken
+    const sessionToken = await store.getSessionItem(StorageKeys.idToken);
+    const legacyToken = readLegacyRawToken(storageMap.id_token);
+    return (sessionToken || legacyToken) as string | undefined;
   };
 
   const isAuthenticated = async () => {
-    const accessToken = store.getItem(storageMap.access_token);
-    if (!accessToken) {
-      return false;
-    }
-
-    const isTokenActive = isJWTActive(accessToken as JWT);
-    if (isTokenActive) {
-      return true;
-    }
-
-    await useRefreshToken();
-    return true;
+    return isAuthenticatedFromJsUtils({
+      useRefreshToken: true,
+      domain,
+      clientId: client_id
+    });
   };
 
   const getPermissions = (): KindePermissions => {
@@ -283,12 +392,6 @@ const createKindeClient = async (
     };
   };
 
-  const clearUrlParams = () => {
-    const url = new URL(window.location.toString());
-    url.search = '';
-    window.history.pushState({}, '', url);
-  };
-
   const getKindeOriginUrl = () => {
     const url = new URL(window.location.toString());
     url.searchParams.delete('invitation_code');
@@ -304,95 +407,8 @@ const createKindeClient = async (
     );
   };
 
-  const handleRedirectToApp = async (q: URLSearchParams) => {
-    const code = q.get('code')!;
-    const state = q.get('state');
-    const error = q.get('error');
-
-    if (error?.toLowerCase() === 'login_link_expired') {
-      const reauthState = q.get('reauth_state');
-      if (reauthState) {
-        const decodedAuthState = atob(reauthState);
-        try {
-          const reauthState = JSON.parse(decodedAuthState);
-          if (reauthState) {
-            login(reauthState);
-          }
-        } catch (ex) {
-          throw new Error(
-            ex instanceof Error
-              ? ex.message
-              : 'Unknown Error parsing reauth state'
-          );
-        }
-      }
-      return;
-    }
-
-    const stringState = sessionStorage.getItem(`${SESSION_PREFIX}-${state}`);
-
-    // Verify state
-    if (!stringState) {
-      console.error('Invalid state');
-    } else {
-      if (error) {
-        const error = q.get('error');
-        const errorDescription = q.get('error_description');
-        clearUrlParams();
-        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
-
-        const {appState} = JSON.parse(stringState);
-        if (on_error_callback) {
-          on_error_callback({
-            error,
-            errorDescription,
-            state,
-            appState
-          } as ErrorProps);
-        } else {
-          window.location.href = appState.kindeOriginUrl;
-        }
-        return false;
-      }
-      const {appState, codeVerifier} = JSON.parse(stringState);
-      // Exchange authorisation code for an access token
-      try {
-        const response = await fetch(config.token_endpoint, {
-          method: 'POST',
-          ...(isUseCookie && {credentials: 'include'}),
-          headers: new Headers({
-            'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Kinde-SDK': `${config._framework || 'JavaScript'}/${
-              config._frameworkVersion || version
-            }`
-          }),
-          body: new URLSearchParams({
-            client_id: config.client_id,
-            code,
-            code_verifier: codeVerifier,
-            grant_type: 'authorization_code',
-            redirect_uri: config.redirect_uri
-          })
-        });
-
-        const data = await response.json();
-
-        setStore(data);
-        // Remove auth code from address bar
-        clearUrlParams();
-        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
-
-        const user = getUser();
-
-        if (on_redirect_callback) {
-          on_redirect_callback(user, appState);
-        }
-      } catch (err) {
-        console.error(err);
-        sessionStorage.removeItem(`${SESSION_PREFIX}-${state}`);
-      }
-    }
-  };
+  const appStateSessionKey = (oauthState: string) =>
+    `${SESSION_PREFIX}-app-state-${oauthState}`;
 
   const redirectToKinde = async (options: RedirectOptions) => {
     const {
@@ -400,85 +416,198 @@ const createKindeClient = async (
       prompt,
       is_create_org,
       org_name = '',
-      org_code,
       invitation_code,
-      authUrlParams = {}
+      authUrlParams = {},
+      ...restRedirectOptions
     } = options;
+
+    const params = new URLSearchParams(window.location.search);
 
     if (!app_state.kindeOriginUrl) {
       app_state.kindeOriginUrl = getKindeOriginUrl();
     }
 
-    const {state, code_challenge, url} = await setupChallenge(
-      config.authorization_endpoint,
-      app_state
-    );
+    const routeType =
+      is_create_org || prompt === 'create'
+        ? IssuerRouteTypes.register
+        : IssuerRouteTypes.login;
 
-    const searchParams: Record<string, string> = {
-      redirect_uri,
-      client_id,
-      response_type: 'code',
-      scope: config.requested_scopes,
-      code_challenge,
-      code_challenge_method: 'S256',
-      state,
-      supports_reauth: 'true'
+    const eventType =
+      options.prompt === PromptTypes.create
+        ? AuthEvent.register
+        : AuthEvent.login;
+
+    const optionsState = params.get('state') || ('' as string);
+    const promptType = PromptTypes[options.prompt as keyof typeof PromptTypes];
+
+    const authProps: LoginOptions & AuthOptions = {
+      audience,
+      clientId: client_id,
+      scope: config.requested_scopes.split(' ') as Scopes[],
+      supportsReauth: true,
+      ...restRedirectOptions,
+      prompt: promptType,
+      state: base64UrlEncode(
+        JSON.stringify({
+          kinde: {event: eventType, state: optionsState}
+        })
+      ),
+      redirectURL: getRedirectUrl(redirect_uri)
     };
 
-    if (prompt) {
-      searchParams.prompt = prompt;
-    }
-
-    if (org_code) {
-      searchParams.org_code = org_code;
-    }
-
     if (invitation_code) {
-      searchParams.invitation_code = invitation_code;
-      searchParams.is_invitation = 'true';
+      authProps.invitationCode = invitation_code;
+      authProps.isInvitation = true;
     }
 
     if (is_create_org) {
-      searchParams.is_create_org = String(is_create_org);
-      searchParams.org_name = org_name;
+      authProps.isCreateOrg = is_create_org;
+      authProps.orgName = org_name;
     }
 
-    const urlSearchParams = new URLSearchParams({
-      ...normalizeAuthUrlParams(authUrlParams),
-      ...searchParams
-    });
+    const authUrl = await generateAuthUrl(config.domain, routeType, authProps);
 
-    if (audience) {
-      /* if multiple audiences requested it should appear multiple times in the query string */
-      audience
-        .trim()
-        .split(/\s+/)
-        .forEach((aud) => {
-          urlSearchParams.append('audience', aud);
-        });
+    // mergeAuthUrlParams only — do not replace the query string with authProps keys:
+    // generateAuthUrl already maps redirectURL → redirect_uri, clientId → client_id, etc.
+    const reservedParams = new Set([
+      'state',
+      'client_id',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'code_challenge',
+      'code_challenge_method'
+    ]);
+    for (const [k, v] of Object.entries(
+      normalizeAuthUrlParams(authUrlParams)
+    )) {
+      if (reservedParams.has(k)) continue;
+      authUrl.url.searchParams.set(k, String(v));
     }
-    url.search = String(urlSearchParams);
 
-    window.location.href = url.toString();
+    const oauthState =
+      authUrl.url.searchParams.get('state') || authUrl.state || '';
+    if (oauthState) {
+      try {
+        sessionStorage.setItem(
+          appStateSessionKey(oauthState),
+          JSON.stringify(app_state)
+        );
+      } catch {
+        // quota / private mode — callback will not receive app_state
+      }
+    }
+
+    try {
+      navigateToKinde({
+        url: authUrl.url.toString(),
+        handleResult: processAuthResult
+      });
+    } catch (error) {
+      if (on_error_callback) {
+        on_error_callback({
+          error: 'Error with navigate to Kinde',
+          errorDescription: (error as Error).message,
+          state: authProps.state,
+          appState: {
+            kindeOriginUrl: window.location.href
+          }
+        } as ErrorProps);
+      }
+    }
   };
 
-  const register = async (options?: AuthOptions) => {
+  const processAuthResult = async (searchParams: URLSearchParams) => {
+    const oauthStateParam = searchParams.get('state') || '';
+    let storedAppState: Record<string, unknown> = {};
+    if (oauthStateParam) {
+      const key = appStateSessionKey(oauthStateParam);
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (raw) {
+          storedAppState = JSON.parse(raw) as Record<string, unknown>;
+        }
+      } catch {
+        storedAppState = {};
+      }
+      sessionStorage.removeItem(key);
+    }
+
+    const decoded = base64UrlDecode(oauthStateParam);
+    try {
+      JSON.parse(decoded) as StateWithKinde;
+    } catch (error) {
+      console.error('Error parsing state:', error);
+      on_error_callback?.({
+        error: 'ERR_STATE_PARSE',
+        errorDescription: String(error),
+        state: oauthStateParam,
+        appState: storedAppState
+      });
+      return;
+    }
+
+    try {
+      const codeResponse = await exchangeAuthCode({
+        urlParams: searchParams,
+        domain,
+        clientId: client_id,
+        redirectURL: getRedirectUrl(options.redirect_uri || redirect_uri),
+        autoRefresh: true
+      });
+
+      if (codeResponse.success) {
+        const user = await getUserProfile();
+        if (user) {
+          on_redirect_callback?.(user, storedAppState);
+        }
+      } else {
+        on_error_callback?.({
+          error: 'ERR_CODE_EXCHANGE',
+          errorDescription: codeResponse.error,
+          state: oauthStateParam,
+          appState: storedAppState
+        });
+      }
+    } catch (error) {
+      on_error_callback?.({
+        error: 'ERR_POPUP_AUTH',
+        errorDescription: String(error),
+        state: oauthStateParam,
+        appState: storedAppState
+      } as ErrorProps);
+    }
+  };
+
+  const register = async (
+    options?: (AuthOptions | LoginMethodParams) & {
+      state?: Record<string, string>;
+    }
+  ) => {
     await redirectToKinde({
       ...options,
-      prompt: 'create'
+      prompt: PromptTypes.create
     });
   };
 
-  const login = async (options?: AuthOptions) => {
+  const login = async (
+    options?: (AuthOptions | LoginMethodParams) & {
+      state?: Record<string, string>;
+    }
+  ) => {
     await redirectToKinde({
       ...options
     });
   };
 
-  const createOrg = async (options?: OrgOptions) => {
+  const createOrg = async (
+    options?: (OrgOptions | LoginMethodParams) & {
+      state?: Record<string, string>;
+    }
+  ) => {
     await redirectToKinde({
       ...options,
-      prompt: 'create',
+      prompt: PromptTypes.create,
       is_create_org: true
     });
   };
@@ -488,49 +617,78 @@ const createKindeClient = async (
   };
 
   const getUserProfile = async () => {
-    const token = await getToken();
-    const headers = {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`
-    };
-
     try {
-      const res = await fetch(`${config.domain}/oauth2/v2/user_profile`, {
-        method: 'GET',
-        headers: headers
-      });
-      const json = await res.json();
-      store.setItem(storageMap.user, {
-        id: json.sub,
-        given_name: json.given_name,
-        family_name: json.family_name,
-        email: json.email,
-        picture: json.picture
-      });
-      return store.getItem(storageMap.user) as KindeUser;
+      const user = await getUserProfileFromJsUtils();
+
+      if (!user) return;
+
+      const mappedUser: KindeUser = {
+        id: user.id,
+        given_name: user.givenName,
+        family_name: user.familyName,
+        email: user.email,
+        picture: user.picture
+      };
+
+      store.setItem(storageMap.user, mappedUser);
+      return mappedUser;
     } catch (err) {
       console.error(err);
     }
   };
 
-  const logout = async () => {
-    const url = new URL(`${config.domain}/logout`);
-
+  const logout = async (options?: string | LogoutOptions) => {
     try {
-      store.reset();
+      const params = new URLSearchParams();
 
-      if (isUseLocalStorage) {
-        localStorage.removeItem(storageMap.refresh_token);
+      if (options) {
+        if (options && typeof options === 'string') {
+          params.append('redirect', options);
+        } else if (typeof options === 'object') {
+          if (options.redirectUrl || logout_uri) {
+            params.append('redirect', options.redirectUrl || logout_uri || '');
+          }
+          if (options.allSessions) {
+            params.append('all_sessions', String(options.allSessions));
+          }
+        }
+      } else {
+        params.append('redirect', logout_uri || '');
       }
 
-      const searchParams = new URLSearchParams({
-        redirect: logout_uri
-      });
-      url.search = String(searchParams);
+      await Promise.all([
+        store.removeSessionItem(StorageKeys.idToken),
+        store.removeSessionItem(StorageKeys.accessToken),
+        store.removeSessionItem(StorageKeys.refreshToken),
+        localStorageAdapter.removeSessionItem(StorageKeys.refreshToken),
+        store.removeItems(
+          storageMap.refresh_token,
+          storageMap.access_token,
+          storageMap.id_token,
+          storageMap.user,
+          storageMap.token_bundle
+        )
+      ]);
 
-      window.location.href = url.toString();
-    } catch (err) {
-      console.error(err);
+      try {
+        await navigateToKinde({
+          url: `${domain}/logout?${params.toString()}`
+        });
+      } catch (error) {
+        on_error_callback?.({
+          error: 'ERR_POPUP',
+          errorDescription: (error as Error).message,
+          state: '',
+          appState: {}
+        });
+      }
+    } catch (error) {
+      on_error_callback?.({
+        error: 'ERR_LOGOUT',
+        errorDescription: String(error),
+        state: '',
+        appState: {}
+      });
     }
   };
 
@@ -544,18 +702,11 @@ const createKindeClient = async (
       }
 
       const returnUrl = options.returnUrl || window.location.href;
-      const tokens = store.getItem(storageMap.token_bundle) as KindeState;
+      const tokens = await getAccessToken();
 
-      if (!tokens || !tokens.access_token) {
+      if (!tokens) {
         throw new Error('No valid access token found');
       }
-
-      const storage = new MemoryStorage();
-      await storage.setSessionItem(
-        StorageKeys.accessToken,
-        tokens.access_token
-      );
-      setActiveStorage(storage);
 
       const portalUrl = await generatePortalUrl({
         ...options,
@@ -569,22 +720,112 @@ const createKindeClient = async (
     }
   };
 
-  const init = async () => {
-    const q = new URLSearchParams(window.location.search);
-    // Is a redirect from Kinde Auth server
-    if (isKindeRedirect(q)) {
-      await handleRedirectToApp(q);
-      return;
+  const migrateLegacyRefreshTokenKey = () => {
+    if (!isUseLocalStorage) return;
+    const oldToken = localStorage.getItem(storageMap.refresh_token);
+    if (!oldToken) return;
+
+    const newToken = localStorageAdapter.getSessionItem(
+      StorageKeys.refreshToken
+    );
+
+    if (!newToken) {
+      localStorageAdapter.setSessionItem(StorageKeys.refreshToken, oldToken);
     }
 
-    const invitationCode = q.get('invitation_code');
-    if (invitationCode) {
-      await login({invitation_code: invitationCode});
+    localStorage.removeItem(storageMap.refresh_token);
+  };
+  const init = async () => {
+    try {
+      try {
+        migrateLegacyRefreshTokenKey();
+        // This handles the refresh token
+        await checkAuth({domain, clientId: client_id});
+      } catch (err) {
+        console.warn('checkAuth failed:', err);
+        on_error_callback?.({
+          error: 'ERR_CHECK_AUTH',
+          errorDescription: String(err),
+          state: '',
+          appState: {}
+        });
+      }
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.has('error')) {
+        const errorCode = params.get('error');
+        if (errorCode?.toLowerCase() === 'login_link_expired') {
+          const reauthState = params.get('reauth_state');
+          if (reauthState) {
+            login({reauthState: reauthState});
+          }
+          return;
+        }
+        on_error_callback?.({
+          error: 'ERR_CHECK_AUTH',
+          errorDescription: String(errorCode),
+          state: '',
+          appState: {}
+        });
+        return;
+      }
+
+      const isKindeRedirectUri = isKindeRedirect(params);
+
+      const kindeShouldHandle = isKindeRedirectUri && params.has('code');
+
+      if (hasInvitationCode && invitationCode) {
+        await login({invitation_code: invitationCode});
+        return;
+      }
+      if (kindeShouldHandle) {
+        if (isSameOriginOpener()) {
+          const searchParams = new URLSearchParams(window.location.search);
+          window.opener.postMessage(
+            {
+              type: 'KINDE_AUTH_RESULT',
+              result: Object.fromEntries(searchParams.entries())
+            },
+            window.location.origin
+          );
+          window.close();
+          return;
+        }
+        await processAuthResult(new URLSearchParams(window.location.search));
+
+        return;
+      }
+
+      if (on_session_restore_callback) {
+        try {
+          const user = await getUserProfile();
+          if (user) {
+            on_session_restore_callback(user, {
+              kindeOriginUrl: window.location.href,
+              kinde: {event: 'session_restore'}
+            });
+          }
+        } catch (error) {
+          console.warn('Error getting user profile', error);
+          on_error_callback?.({
+            error: 'ERR_GET_USER_PROFILE',
+            errorDescription: String(error),
+            state: '',
+            appState: {}
+          });
+        }
+      }
+
       return;
-    } else {
-      // For onload / new tab / page refresh
-      if (isUseCookie || isUseLocalStorage) {
-        await useRefreshToken();
+    } catch (error) {
+      console.warn('Error in init', error);
+      if (on_error_callback) {
+        on_error_callback({
+          error: 'ERR_INIT',
+          errorDescription: String(error),
+          state: '',
+          appState: {}
+        });
       }
     }
   };
@@ -597,37 +838,37 @@ const createKindeClient = async (
     // Also check if redirect_uri matches current url
     const {protocol, host, pathname} = window.location;
 
-    const currentRedirectUri =
-      proxy_redirect_uri || `${protocol}//${host}${pathname}`;
-
+    const currentRedirectUri = `${protocol}//${host}${pathname}`;
+    const expectedRedirectUri = proxy_redirect_uri || redirect_uri;
     return (
-      currentRedirectUri === redirect_uri ||
-      currentRedirectUri === `${redirect_uri}/`
+      currentRedirectUri === expectedRedirectUri ||
+      currentRedirectUri === `${expectedRedirectUri}/`
     );
   };
 
   await init();
 
   return {
-    getToken,
-    getIdToken,
-    getUser,
-    getUserProfile,
-    login,
-    logout,
-    register,
-    portal,
-    isAuthenticated,
     createOrg,
+    getToken,
+    getAccessToken,
+    getBooleanFlag,
     getClaim,
     getFlag,
-    getBooleanFlag,
-    getStringFlag,
+    getIdToken,
     getIntegerFlag,
+    getOrganization,
     getPermissions,
     getPermission,
-    getOrganization,
-    getUserOrganizations
+    getStringFlag,
+    getUser,
+    getUserOrganizations,
+    getUserProfile,
+    isAuthenticated,
+    login,
+    logout,
+    portal,
+    register
   };
 };
 

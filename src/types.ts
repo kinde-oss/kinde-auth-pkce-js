@@ -1,14 +1,14 @@
-import {GeneratePortalUrlParams} from '@kinde/js-utils';
+import {GeneratePortalUrlParams, type LoginMethodParams} from '@kinde/js-utils';
 
 export type KindeUser = {
-  given_name: string | null;
-  id: string | null;
-  family_name: string | null;
-  email: string | null;
-  picture: string | null;
+  given_name: string | undefined;
+  id: string | undefined;
+  family_name: string | undefined;
+  email: string | undefined;
+  picture: string | undefined;
 };
 
-export type KindeState = {
+export type KindeStateTokenBundle = {
   access_token: string;
   expires_in: number;
   id_token: string;
@@ -33,6 +33,10 @@ export type KindeClientOptions = {
   logout_uri?: string;
   on_error_callback?: (props: ErrorProps) => void;
   on_redirect_callback?: (
+    user: KindeUser,
+    appState?: Record<string, unknown>
+  ) => void;
+  on_session_restore_callback?: (
     user: KindeUser,
     appState?: Record<string, unknown>
   ) => void;
@@ -116,23 +120,31 @@ export type GetTokenOptions = {
   isForceRefresh?: boolean;
 };
 
+export type LogoutOptions = {
+  allSessions?: boolean;
+  redirectUrl?: string;
+};
+
+/** Options for redirecting to Kinde (login/register/createOrg). Supports legacy snake_case and @kinde/js-utils camelCase. */
 export type RedirectOptions = OrgOptions &
-  AuthOptions & {
-    prompt?: string;
+  AuthOptions &
+  Omit<Partial<LoginMethodParams>, 'prompt'> & {
+    prompt?: string | import('@kinde/js-utils').PromptTypes;
     is_create_org?: boolean;
   };
 
 export type KindeClient = {
+  getAccessToken: () => Promise<string | undefined>;
+  getIdToken: () => Promise<string | undefined>;
   getToken: (options?: GetTokenOptions) => Promise<string | undefined>;
-  getIdToken: (options?: GetTokenOptions) => Promise<string | undefined>;
   isAuthenticated: () => Promise<boolean>;
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
-  login: (options?: AuthOptions) => Promise<void>;
-  logout: () => Promise<void>;
+  login: (options?: RedirectOptions) => Promise<void>;
+  logout: (options?: string | LogoutOptions) => Promise<void>;
   portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
-  register: (options?: AuthOptions) => Promise<void>;
-  createOrg: (options?: OrgOptions) => Promise<void>;
+  register: (options?: RedirectOptions) => Promise<void>;
+  createOrg: (options?: RedirectOptions) => Promise<void>;
   getClaim: (claim: string, tokenKey?: ClaimTokenKey) => KindeClaim | null;
   getFlag: <T extends KindeFlagTypeCode>(
     code: string,

@@ -4,6 +4,7 @@
     "declarationDir": "./dist/types",
     "target": "esnext",
     "module": "esnext",
+    "types": ["node", "jest"],
     "lib": ["dom", "dom.iterable", "esnext"],
     "moduleResolution": "node",
     "strict": true,

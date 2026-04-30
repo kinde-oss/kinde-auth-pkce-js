@@ -5,7 +5,14 @@ import {isJWTActive} from './isJWTActive';
 import {store} from '../../state/store';
 
 describe('isJWTActive util', () => {
-  beforeEach(() => initializeStore());
+  beforeEach(() => {
+    initializeStore();
+    // Store decoded token with future exp so isJWTActive(store token) passes
+    store.setItem('kinde_access_token', {
+      ...getAccessTokenStub(),
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
+  });
 
   test('returns false if provided token is expired', () => {
     const expiredToken = {...getAccessTokenStub(), exp: 949363200};
