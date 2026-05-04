@@ -42,6 +42,7 @@ import {
   LocalStorage,
   checkAuth,
   setInsecureStorage,
+  storageSettings,
   LoginMethodParams,
   base64UrlEncode,
   navigateToKinde,
@@ -187,6 +188,9 @@ const createKindeClient = async (
   // Use LocalStorage from @kinde/js-utils for persistent storage
   const localStorageAdapter = new LocalStorage();
   setInsecureStorage(localStorageAdapter);
+  // Without this, checkAuth falls back to the _kbrte cookie path for custom domains,
+  // which is inaccessible from localhost, causing a forced re-login on every page load.
+  storageSettings.useInsecureForRefreshToken = isUseLocalStorage;
 
   const config = {
     audience,
