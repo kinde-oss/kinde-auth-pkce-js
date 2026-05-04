@@ -35,7 +35,8 @@ import {
   setActiveStorage,
   checkAuth,
   exchangeAuthCode,
-  getUserProfile
+  getUserProfile,
+  storageSettings
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
@@ -508,5 +509,64 @@ describe('legacy localStorage refresh key migration', () => {
       'legacy-refresh-token'
     );
     expect(ls.removeItem).toHaveBeenCalledWith(storageMap.refresh_token);
+  });
+});
+
+describe('storageSettings.useInsecureForRefreshToken configuration', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    store.reset();
+    storageSettings.useInsecureForRefreshToken = false;
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    storageSettings.useInsecureForRefreshToken = false;
+  });
+
+  it('sets useInsecureForRefreshToken to true on localhost', async () => {
+    setWindowLocation('', 'localhost');
+
+    await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(storageSettings.useInsecureForRefreshToken).toBe(true);
+  });
+
+  it('sets useInsecureForRefreshToken to false on a production custom domain', async () => {
+    setWindowLocation('', 'app.example.com');
+
+    await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    expect(storageSettings.useInsecureForRefreshToken).toBe(false);
+  });
+
+  it('sets useInsecureForRefreshToken to true when is_dangerously_use_local_storage is set', async () => {
+    setWindowLocation('', 'app.example.com');
+
+    await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/',
+      is_dangerously_use_local_storage: true
+    });
+
+    expect(storageSettings.useInsecureForRefreshToken).toBe(true);
   });
 });
