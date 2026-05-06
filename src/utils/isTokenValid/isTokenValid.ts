@@ -1,5 +1,5 @@
 const PAYLOAD_CLAIMS = ['iss', 'azp'];
-import {isJWTActive} from '..';
+import {isJWTActive} from '../isJWTActive/isJWTActive';
 
 const isTokenValid = (token: any, config: any) => {
   if (!token) {
