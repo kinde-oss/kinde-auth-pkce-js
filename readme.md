@@ -10,6 +10,11 @@ You can also use the JavaScript starter kit [here](https://github.com/kinde-star
 
 Please refer to the Kinde [Javacript SDK document](https://kinde.com/docs/developer-tools/javascript-sdk).
 
+## Upgrade notes
+
+- `getToken()` is deprecated and may return `undefined` with the new auth flow.
+- Use `getAccessToken()` instead.
+
 ## Publishing
 
 The core team handles publishing.
