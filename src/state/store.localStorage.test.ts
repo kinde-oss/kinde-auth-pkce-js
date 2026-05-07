@@ -5,7 +5,7 @@ storageSettings.keyPrefix = 'kinde_';
 
 const NEW_KEY = 'kinde_refreshToken0';
 const OLD_KEY = storageMap.refresh_token;
-const SAMPLE_TOKEN = 'rt_sample_abc123def456';
+const SAMPLE_TOKEN = 'test-refresh-token-value';
 
 const makeLocalStorageMock = () => {
   const store: Record<string, string> = {};
