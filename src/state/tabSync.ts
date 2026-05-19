@@ -85,6 +85,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
   const pendingBroadcastWaits = new Set<{
     resolve: (tokens: TabSyncTokens | null) => void;
     reject: (error: Error) => void;
+    clearTimer: () => void;
   }>();
 
   const getChannel = (): BroadcastChannel | null => {
@@ -98,7 +99,10 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
   };
 
   const notifyBroadcastWaiters = (tokens: TabSyncTokens | null) => {
-    pendingBroadcastWaits.forEach(({resolve}) => resolve(tokens));
+    pendingBroadcastWaits.forEach(({resolve, clearTimer}) => {
+      clearTimer();
+      resolve(tokens);
+    });
     pendingBroadcastWaits.clear();
   };
 
@@ -147,9 +151,11 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     const idToken = result[StorageKeys.idToken];
     const refreshToken = result[StorageKeys.refreshToken];
 
+    if (!idToken) return;
+
     await applyTokens({
       accessToken,
-      idToken: idToken ?? '',
+      idToken,
       ...(refreshToken ? {refreshToken} : {})
     });
   };
@@ -233,18 +239,32 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     timeoutMs = BROADCAST_WAIT_MS
   ): Promise<TabSyncTokens | null> =>
     new Promise((resolve, reject) => {
-      const entry = {resolve, reject};
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const clearTimer = () => {
+        if (timer !== undefined) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+      };
+
+      const entry = {
+        resolve,
+        reject,
+        clearTimer
+      };
       pendingBroadcastWaits.add(entry);
 
-      const timer = window.setTimeout(() => {
+      timer = setTimeout(() => {
         pendingBroadcastWaits.delete(entry);
+        clearTimer();
         resolve(null);
       }, timeoutMs);
 
-      const originalResolve = entry.resolve;
       entry.resolve = (tokens) => {
-        window.clearTimeout(timer);
-        originalResolve(tokens);
+        clearTimer();
+        pendingBroadcastWaits.delete(entry);
+        resolve(tokens);
       };
     });
 
@@ -260,8 +280,8 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     if (message.type === 'tokens_updated') {
       void applyTokens(message.tokens).then(() => {
         handlers.onTokensUpdated?.(message.tokens);
+        notifyBroadcastWaiters(message.tokens);
       });
-      notifyBroadcastWaiters(message.tokens);
     } else if (message.type === 'session_cleared') {
       store.reset();
       handlers.onSessionCleared?.();
@@ -332,9 +352,10 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
   const dispose = (): void => {
     channel?.close();
     channel = null;
-    pendingBroadcastWaits.forEach(({reject}) =>
-      reject(new Error('Tab sync disposed'))
-    );
+    pendingBroadcastWaits.forEach(({reject, clearTimer}) => {
+      clearTimer();
+      reject(new Error('Tab sync disposed'));
+    });
     pendingBroadcastWaits.clear();
   };
 

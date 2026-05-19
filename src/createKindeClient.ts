@@ -217,12 +217,11 @@ const createKindeClient = async (
     }
   };
 
-  const runRefreshWithTabSync = async (
-    refreshType: RefreshType = RefreshType.refreshToken
+  const withTabSyncCoordination = async (
+    operation: () => Promise<RefreshTokenResult>,
+    inProgressErrorMessage: string
   ): Promise<RefreshTokenResult> => {
-    const lock = await tabSync.tryWithRefreshLock(() =>
-      runJsUtilsRefresh(refreshType)
-    );
+    const lock = await tabSync.tryWithRefreshLock(operation);
 
     if (lock.ran) {
       if (lock.value.success) {
@@ -249,15 +248,23 @@ const createKindeClient = async (
 
     return {
       success: false,
-      error: 'Token refresh in progress in another tab'
+      error: inProgressErrorMessage
     };
   };
+
+  const runRefreshWithTabSync = (
+    refreshType: RefreshType = RefreshType.refreshToken
+  ) =>
+    withTabSyncCoordination(
+      () => runJsUtilsRefresh(refreshType),
+      'Token refresh in progress in another tab'
+    );
 
   storageSettings.onRefreshHandler = (refreshType) =>
     runRefreshWithTabSync(refreshType);
 
-  const runCheckAuthWithTabSync = async (): Promise<RefreshTokenResult> => {
-    const lock = await tabSync.tryWithRefreshLock(async () => {
+  const runCheckAuthWithTabSync = () =>
+    withTabSyncCoordination(async () => {
       const savedHandler = storageSettings.onRefreshHandler;
       storageSettings.onRefreshHandler = undefined;
       try {
@@ -265,36 +272,7 @@ const createKindeClient = async (
       } finally {
         storageSettings.onRefreshHandler = savedHandler;
       }
-    });
-
-    if (lock.ran) {
-      if (lock.value.success) {
-        await tabSync.applyTokensFromResult(lock.value);
-        const tokens = tokensFromRefreshResult(lock.value);
-        if (tokens) {
-          tabSync.broadcastTokens(tokens);
-        }
-      }
-      return lock.value;
-    }
-
-    const tokens = await tabSync.waitForTokenBroadcast();
-    if (tokens) {
-      return {
-        success: true,
-        [StorageKeys.accessToken]: tokens.accessToken,
-        [StorageKeys.idToken]: tokens.idToken,
-        ...(tokens.refreshToken
-          ? {[StorageKeys.refreshToken]: tokens.refreshToken}
-          : {})
-      };
-    }
-
-    return {
-      success: false,
-      error: 'Authentication check in progress in another tab'
-    };
-  };
+    }, 'Authentication check in progress in another tab');
 
   tabSync.setupListeners({});
   tabSync.setupVisibilitySync(() => {

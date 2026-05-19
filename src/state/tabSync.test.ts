@@ -3,6 +3,8 @@ import {store} from './store';
 import {
   createTabSync,
   tokensFromRefreshResult,
+  type TabSync,
+  type TabSyncOptions,
   type TabSyncTokens
 } from './tabSync';
 
@@ -29,8 +31,22 @@ const makeStorageMock = () => {
 };
 
 describe('tabSync', () => {
+  const disposers: Array<() => void> = [];
+
+  const createTrackedTabSync = (options: TabSyncOptions): TabSync => {
+    const tabSync = createTabSync(options);
+    disposers.push(() => tabSync.dispose());
+    return tabSync;
+  };
+
   beforeEach(() => {
     store.reset();
+
+    Object.defineProperty(global, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });
 
     const local = makeStorageMock();
     const session = makeStorageMock();
@@ -70,8 +86,13 @@ describe('tabSync', () => {
     });
   });
 
+  afterEach(() => {
+    disposers.forEach((dispose) => dispose());
+    disposers.length = 0;
+  });
+
   test('applyTokens writes access, id, and refresh to the store', async () => {
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
 
     await tabSync.applyTokens(SAMPLE_TOKENS);
 
@@ -97,8 +118,23 @@ describe('tabSync', () => {
     });
   });
 
+  test('applyTokensFromResult and tokensFromRefreshResult skip when idToken is missing', async () => {
+    const tabSync = createTrackedTabSync({store});
+    const result = {
+      success: true as const,
+      [StorageKeys.accessToken]: 'at-only'
+    };
+
+    expect(tokensFromRefreshResult(result)).toBeNull();
+
+    await tabSync.applyTokensFromResult(result);
+
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
+    expect(store.getSessionItem(StorageKeys.idToken)).toBeNull();
+  });
+
   test('tryWithRefreshLock runs the callback when the lock is available', async () => {
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
     const fn = jest.fn().mockResolvedValue('ok');
 
     const result = await tabSync.tryWithRefreshLock(fn);
@@ -115,7 +151,7 @@ describe('tabSync', () => {
     });
 
     try {
-      const tabSync = createTabSync({store});
+      const tabSync = createTrackedTabSync({store});
       localStorage.setItem(
         'kinde_refresh_lock',
         JSON.stringify({
@@ -138,7 +174,7 @@ describe('tabSync', () => {
   });
 
   test('setupListeners applies tokens via localStorage storage event fallback', async () => {
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
     const onTokensUpdated = jest.fn();
 
     tabSync.setupListeners({onTokensUpdated});
@@ -169,7 +205,7 @@ describe('tabSync', () => {
 
   test('setupListeners clears the store on session_cleared via storage event', async () => {
     store.setSessionItem(StorageKeys.accessToken, 'existing');
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
     const onSessionCleared = jest.fn();
 
     tabSync.setupListeners({onSessionCleared});
@@ -197,7 +233,7 @@ describe('tabSync', () => {
   });
 
   test('setupVisibilitySync invokes callback when the document becomes visible', () => {
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
     const onVisible = jest.fn();
 
     tabSync.setupVisibilitySync(onVisible);
@@ -214,7 +250,7 @@ describe('tabSync', () => {
   });
 
   test('waitForTokenBroadcast resolves when a storage event delivers tokens', async () => {
-    const tabSync = createTabSync({store});
+    const tabSync = createTrackedTabSync({store});
     tabSync.setupListeners({});
 
     const waitPromise = tabSync.waitForTokenBroadcast(5000);
