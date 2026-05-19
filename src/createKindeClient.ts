@@ -13,6 +13,7 @@ import {
   isTokenValid
 } from './utils/index';
 import {store} from './state/store';
+import {createTabSync, tokensFromRefreshResult} from './state/tabSync';
 import type {
   AuthOptions,
   KindeClient,
@@ -41,6 +42,8 @@ import {
   getUserProfile as getUserProfileFromJsUtils,
   LocalStorage,
   checkAuth,
+  refreshToken,
+  RefreshType,
   setInsecureStorage,
   storageSettings,
   LoginMethodParams,
@@ -192,6 +195,112 @@ const createKindeClient = async (
   // which is inaccessible from localhost, causing a forced re-login on every page load.
   storageSettings.useInsecureForRefreshToken = isUseLocalStorage;
 
+  const tabSync = createTabSync({
+    store,
+    insecureStorage: localStorageAdapter,
+    useInsecureForRefreshToken: isUseLocalStorage
+  });
+
+  const runJsUtilsRefresh = async (
+    refreshType: RefreshType = RefreshType.refreshToken
+  ): Promise<RefreshTokenResult> => {
+    const savedHandler = storageSettings.onRefreshHandler;
+    storageSettings.onRefreshHandler = undefined;
+    try {
+      return await refreshToken({
+        domain,
+        clientId: client_id,
+        refreshType
+      });
+    } finally {
+      storageSettings.onRefreshHandler = savedHandler;
+    }
+  };
+
+  const runRefreshWithTabSync = async (
+    refreshType: RefreshType = RefreshType.refreshToken
+  ): Promise<RefreshTokenResult> => {
+    const lock = await tabSync.tryWithRefreshLock(() =>
+      runJsUtilsRefresh(refreshType)
+    );
+
+    if (lock.ran) {
+      if (lock.value.success) {
+        await tabSync.applyTokensFromResult(lock.value);
+        const tokens = tokensFromRefreshResult(lock.value);
+        if (tokens) {
+          tabSync.broadcastTokens(tokens);
+        }
+      }
+      return lock.value;
+    }
+
+    const tokens = await tabSync.waitForTokenBroadcast();
+    if (tokens) {
+      return {
+        success: true,
+        [StorageKeys.accessToken]: tokens.accessToken,
+        [StorageKeys.idToken]: tokens.idToken,
+        ...(tokens.refreshToken
+          ? {[StorageKeys.refreshToken]: tokens.refreshToken}
+          : {})
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Token refresh in progress in another tab'
+    };
+  };
+
+  storageSettings.onRefreshHandler = (refreshType) =>
+    runRefreshWithTabSync(refreshType);
+
+  const runCheckAuthWithTabSync = async (): Promise<RefreshTokenResult> => {
+    const lock = await tabSync.tryWithRefreshLock(async () => {
+      const savedHandler = storageSettings.onRefreshHandler;
+      storageSettings.onRefreshHandler = undefined;
+      try {
+        return await checkAuth({domain, clientId: client_id});
+      } finally {
+        storageSettings.onRefreshHandler = savedHandler;
+      }
+    });
+
+    if (lock.ran) {
+      if (lock.value.success) {
+        await tabSync.applyTokensFromResult(lock.value);
+        const tokens = tokensFromRefreshResult(lock.value);
+        if (tokens) {
+          tabSync.broadcastTokens(tokens);
+        }
+      }
+      return lock.value;
+    }
+
+    const tokens = await tabSync.waitForTokenBroadcast();
+    if (tokens) {
+      return {
+        success: true,
+        [StorageKeys.accessToken]: tokens.accessToken,
+        [StorageKeys.idToken]: tokens.idToken,
+        ...(tokens.refreshToken
+          ? {[StorageKeys.refreshToken]: tokens.refreshToken}
+          : {})
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Authentication check in progress in another tab'
+    };
+  };
+
+  tabSync.setupListeners({});
+  tabSync.setupVisibilitySync(() => {
+    void runCheckAuthWithTabSync();
+  });
+
   const config = {
     audience,
     client_id,
@@ -243,7 +352,10 @@ const createKindeClient = async (
     {tokenType} = {tokenType: storageMap.access_token}
   ) => {
     const localStorageRefreshToken = isUseLocalStorage
-      ? (localStorage.getItem(storageMap.refresh_token) as string)
+      ? (localStorageAdapter.getSessionItem(
+          StorageKeys.refreshToken
+        ) as string) ||
+        (localStorage.getItem(storageMap.refresh_token) as string)
       : (store.getItem(storageMap.refresh_token) as string);
 
     const isCallTokenEndpoint =
@@ -273,6 +385,17 @@ const createKindeClient = async (
         const data = await response.json();
 
         setStore(data);
+
+        const tokens = tokensFromRefreshResult({
+          success: true,
+          [StorageKeys.accessToken]: data.access_token,
+          [StorageKeys.idToken]: data.id_token,
+          [StorageKeys.refreshToken]: data.refresh_token
+        });
+        if (tokens) {
+          void tabSync.applyTokens(tokens);
+          tabSync.broadcastTokens(tokens);
+        }
 
         if (tokenType === storageMap.id_token) {
           return data.id_token;
@@ -561,6 +684,12 @@ const createKindeClient = async (
       });
 
       if (codeResponse.success) {
+        await tabSync.applyTokensFromResult(codeResponse);
+        const syncedTokens = tokensFromRefreshResult(codeResponse);
+        if (syncedTokens) {
+          tabSync.broadcastTokens(syncedTokens);
+        }
+
         const user = await getUserProfile();
         if (user) {
           on_redirect_callback?.(user, storedAppState);
@@ -674,6 +803,8 @@ const createKindeClient = async (
         )
       ]);
 
+      tabSync.broadcastSessionCleared();
+
       try {
         await navigateToKinde({
           url: `${domain}/logout?${params.toString()}`
@@ -743,8 +874,10 @@ const createKindeClient = async (
     try {
       try {
         migrateLegacyRefreshTokenKey();
-        // This handles the refresh token
-        await checkAuth({domain, clientId: client_id});
+        // Restores session and refreshes near-expiry tokens via js-utils checkAuth.
+        // On custom domains, refresh uses the httpOnly _kbrte cookie (credentials: include);
+        // the refresh_token field is intentionally omitted from the POST body.
+        await runCheckAuthWithTabSync();
       } catch (err) {
         console.warn('checkAuth failed:', err);
         on_error_callback?.({
