@@ -84,6 +84,13 @@ describe('tabSync', () => {
       writable: true,
       configurable: true
     });
+    Object.defineProperty(global, 'navigator', {
+      value: {
+        locks: undefined
+      },
+      writable: true,
+      configurable: true
+    });
   });
 
   afterEach(() => {
@@ -173,6 +180,43 @@ describe('tabSync', () => {
     }
   });
 
+  test('tryWithRefreshLock skips when localStorage lock is lost after write', async () => {
+    const originalLocks = navigator.locks;
+    Object.defineProperty(navigator, 'locks', {
+      value: undefined,
+      configurable: true
+    });
+
+    const local = localStorage as ReturnType<typeof makeStorageMock>;
+    const originalSetItem = local.setItem.bind(local);
+    local.setItem = (key: string, value: string) => {
+      originalSetItem(key, value);
+      if (key === 'kinde_refresh_lock') {
+        originalSetItem(
+          key,
+          JSON.stringify({
+            tabId: 'other-tab',
+            until: Date.now() + 60_000
+          })
+        );
+      }
+    };
+
+    try {
+      const tabSync = createTrackedTabSync({store});
+      const fn = jest.fn().mockResolvedValue('ok');
+      const result = await tabSync.tryWithRefreshLock(fn);
+
+      expect(result).toEqual({ran: false});
+      expect(fn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(navigator, 'locks', {
+        value: originalLocks,
+        configurable: true
+      });
+    }
+  });
+
   test('setupListeners applies tokens via localStorage storage event fallback', async () => {
     const tabSync = createTrackedTabSync({store});
     const onTokensUpdated = jest.fn();
@@ -230,6 +274,37 @@ describe('tabSync', () => {
 
     expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
     expect(onSessionCleared).toHaveBeenCalled();
+  });
+
+  test('setupListeners clears mirrored refresh token on session_cleared when insecure storage is configured', async () => {
+    const removeSessionItem = jest.fn();
+    const tabSync = createTrackedTabSync({
+      store,
+      insecureStorage: {setSessionItem: jest.fn(), removeSessionItem},
+      useInsecureForRefreshToken: true
+    });
+
+    tabSync.setupListeners({});
+
+    const message = {
+      type: 'session_cleared' as const,
+      tabId: 'other-tab-id'
+    };
+
+    const storageHandler = (
+      window.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'storage')?.[1] as
+      | ((event: StorageEvent) => void)
+      | undefined;
+
+    storageHandler?.({
+      key: 'kinde_token_sync',
+      newValue: JSON.stringify(message)
+    } as StorageEvent);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(removeSessionItem).toHaveBeenCalledWith(StorageKeys.refreshToken);
   });
 
   test('setupVisibilitySync invokes callback when the document becomes visible', () => {

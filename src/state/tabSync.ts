@@ -24,6 +24,7 @@ type TabSyncMessage =
 
 type SessionManagerLike = {
   setSessionItem<T>(key: StorageKeys, value: T): void;
+  removeSessionItem?: (key: StorageKeys) => void;
 };
 
 export type TabSyncOptions = {
@@ -124,6 +125,12 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     }
   };
 
+  const clearMirroredRefreshToken = (): void => {
+    if (useInsecureForRefreshToken && insecureStorage?.removeSessionItem) {
+      insecureStorage.removeSessionItem(StorageKeys.refreshToken);
+    }
+  };
+
   const applyTokens = async (tokens: TabSyncTokens): Promise<void> => {
     const items: Partial<Record<StorageKeys, string>> = {
       [StorageKeys.accessToken]: tokens.accessToken,
@@ -202,7 +209,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
       return {ran: true, value: await fn()};
     }
 
-    if (navigator.locks?.request) {
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
       let acquired = false;
       let result!: T;
 
@@ -228,6 +235,11 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     }
 
     writeLsLock();
+    const acquired = readLsLock();
+    if (!acquired || acquired.tabId !== tabId || acquired.until <= Date.now()) {
+      return {ran: false};
+    }
+
     try {
       return {ran: true, value: await fn()};
     } finally {
@@ -284,6 +296,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
       });
     } else if (message.type === 'session_cleared') {
       store.reset();
+      clearMirroredRefreshToken();
       handlers.onSessionCleared?.();
       notifyBroadcastWaiters(null);
     }

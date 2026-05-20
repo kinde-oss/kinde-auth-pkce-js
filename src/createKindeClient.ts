@@ -276,7 +276,15 @@ const createKindeClient = async (
 
   tabSync.setupListeners({});
   tabSync.setupVisibilitySync(() => {
-    void runCheckAuthWithTabSync();
+    void runCheckAuthWithTabSync().catch((error) => {
+      console.warn('checkAuth failed:', error);
+      on_error_callback?.({
+        error: 'ERR_CHECK_AUTH',
+        errorDescription: String(error),
+        state: '',
+        appState: {}
+      });
+    });
   });
 
   const config = {
@@ -362,7 +370,7 @@ const createKindeClient = async (
 
         const data = await response.json();
 
-        setStore(data);
+        const stored = setStore(data);
 
         const tokens = tokensFromRefreshResult({
           success: true,
@@ -370,7 +378,7 @@ const createKindeClient = async (
           [StorageKeys.idToken]: data.id_token,
           [StorageKeys.refreshToken]: data.refresh_token
         });
-        if (tokens) {
+        if (stored && tokens) {
           void tabSync.applyTokens(tokens);
           tabSync.broadcastTokens(tokens);
         }
@@ -388,7 +396,7 @@ const createKindeClient = async (
 
   /* @deprecated only used for old getToken method which is now deprecated */
   const setStore = (data: KindeStateTokenBundle & {error: string}) => {
-    if (!data || data.error) return;
+    if (!data || data.error) return false;
 
     const idToken = jwtDecode(data.id_token)! as JWT & KindeUser;
     const idTokenHeader = jwtDecode(data.id_token, {header: true});
@@ -434,7 +442,9 @@ const createKindeClient = async (
       } else {
         store.setItem(storageMap.refresh_token, data.refresh_token);
       }
+      return true;
     }
+    return false;
   };
 
   const readLegacyRawToken = (
