@@ -60,13 +60,24 @@ const isBrowser = (): boolean =>
 const getTabId = (): string => {
   if (!isBrowser()) return 'server';
   const key = 'kinde_tab_id';
-  let id = sessionStorage.getItem(key);
+
+  let id: string | null = null;
+  try {
+    id = sessionStorage.getItem(key);
+  } catch {
+    // sessionStorage may be unavailable (e.g. private mode)
+  }
+
   if (!id) {
     id =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `tab_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem(key, id);
+    try {
+      sessionStorage.setItem(key, id);
+    } catch {
+      // ignore persistence failures
+    }
   }
   return id;
 };

@@ -98,6 +98,21 @@ describe('tabSync', () => {
     disposers.length = 0;
   });
 
+  test('tabId is generated when sessionStorage throws', () => {
+    const session = sessionStorage as ReturnType<typeof makeStorageMock>;
+    session.getItem = () => {
+      throw new Error('sessionStorage disabled');
+    };
+    session.setItem = () => {
+      throw new Error('sessionStorage disabled');
+    };
+
+    const tabSync = createTrackedTabSync({store});
+
+    expect(tabSync.tabId).toBeTruthy();
+    expect(tabSync.tabId).not.toBe('server');
+  });
+
   test('applyTokens writes access, id, and refresh to the store', async () => {
     const tabSync = createTrackedTabSync({store});
 
