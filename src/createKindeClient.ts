@@ -223,8 +223,7 @@ const createKindeClient = async (
 
   const withTabSyncCoordination = async (
     operation: () => Promise<RefreshTokenResult>,
-    inProgressErrorMessage: string,
-    options?: {fallbackToBroadcastOnFailedLock?: boolean}
+    inProgressErrorMessage: string
   ): Promise<RefreshTokenResult> => {
     const lock = await tabSync.tryWithRefreshLock(operation);
 
@@ -238,11 +237,10 @@ const createKindeClient = async (
     }
 
     const waitForPeerTokens =
-      !lock.ran ||
-      (lock.ran && options?.fallbackToBroadcastOnFailedLock === true);
+      !lock.ran || (lock.ran && lock.usedAmbiguousFallback);
 
     if (waitForPeerTokens) {
-      // Lost the lock, or won the LS lock but refresh failed (e.g. token already used by another tab)
+      // Another tab holds the lock, or LS lock outcome was ambiguous and refresh failed
       const tokens = await tabSync.waitForTokenBroadcast();
       if (tokens) {
         await tabSync.applyTokens(tokens);
@@ -272,8 +270,7 @@ const createKindeClient = async (
   ) =>
     withTabSyncCoordination(
       () => runJsUtilsRefresh(refreshType),
-      'Token refresh in progress in another tab',
-      {fallbackToBroadcastOnFailedLock: true}
+      'Token refresh in progress in another tab'
     );
 
   storageSettings.onRefreshHandler = (refreshType) =>

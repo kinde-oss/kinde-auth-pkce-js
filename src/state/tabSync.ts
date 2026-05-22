@@ -42,7 +42,9 @@ export type TabSync = {
   broadcastSessionCleared: () => void;
   tryWithRefreshLock: <T>(
     fn: () => Promise<T>
-  ) => Promise<{ran: true; value: T} | {ran: false}>;
+  ) => Promise<
+    {ran: true; value: T; usedAmbiguousFallback: boolean} | {ran: false}
+  >;
   waitForTokenBroadcast: (timeoutMs?: number) => Promise<TabSyncTokens | null>;
   setupListeners: (handlers: {
     onTokensUpdated?: (tokens: TabSyncTokens) => void;
@@ -215,9 +217,11 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
 
   const tryWithRefreshLock = async <T>(
     fn: () => Promise<T>
-  ): Promise<{ran: true; value: T} | {ran: false}> => {
+  ): Promise<
+    {ran: true; value: T; usedAmbiguousFallback: boolean} | {ran: false}
+  > => {
     if (!isBrowser()) {
-      return {ran: true, value: await fn()};
+      return {ran: true, value: await fn(), usedAmbiguousFallback: false};
     }
 
     if (typeof navigator !== 'undefined' && navigator.locks?.request) {
@@ -235,7 +239,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
       );
 
       if (acquired) {
-        return {ran: true, value: result};
+        return {ran: true, value: result, usedAmbiguousFallback: false};
       }
       return {ran: false};
     }
@@ -252,7 +256,11 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     }
 
     try {
-      return {ran: true, value: await fn()};
+      return {
+        ran: true,
+        value: await fn(),
+        usedAmbiguousFallback: true
+      };
     } finally {
       clearLsLockIfOwner();
     }

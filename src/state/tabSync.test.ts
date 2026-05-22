@@ -161,8 +161,47 @@ describe('tabSync', () => {
 
     const result = await tabSync.tryWithRefreshLock(fn);
 
-    expect(result).toEqual({ran: true, value: 'ok'});
+    expect(result).toEqual({
+      ran: true,
+      value: 'ok',
+      usedAmbiguousFallback: true
+    });
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  test('tryWithRefreshLock uses Web Locks without ambiguous fallback when available', async () => {
+    const originalLocks = navigator.locks;
+    const request = jest.fn(
+      async (
+        _name: string,
+        _options: {ifAvailable: boolean},
+        callback: (lock: object) => Promise<void>
+      ) => {
+        await callback({});
+      }
+    );
+    Object.defineProperty(navigator, 'locks', {
+      value: {request},
+      configurable: true
+    });
+
+    try {
+      const tabSync = createTrackedTabSync({store});
+      const fn = jest.fn().mockResolvedValue('ok');
+      const result = await tabSync.tryWithRefreshLock(fn);
+
+      expect(result).toEqual({
+        ran: true,
+        value: 'ok',
+        usedAmbiguousFallback: false
+      });
+      expect(request).toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(navigator, 'locks', {
+        value: originalLocks,
+        configurable: true
+      });
+    }
   });
 
   test('tryWithRefreshLock skips when a localStorage lock is held by another tab', async () => {
