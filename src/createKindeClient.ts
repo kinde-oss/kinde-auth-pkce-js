@@ -13,7 +13,11 @@ import {
   isTokenValid
 } from './utils/index';
 import {store} from './state/store';
-import {createTabSync, tokensFromRefreshResult} from './state/tabSync';
+import {
+  createTabSync,
+  isSuccessResult,
+  tokensFromRefreshResult
+} from './state/tabSync';
 import type {
   AuthOptions,
   KindeClient,
@@ -219,31 +223,42 @@ const createKindeClient = async (
 
   const withTabSyncCoordination = async (
     operation: () => Promise<RefreshTokenResult>,
-    inProgressErrorMessage: string
+    inProgressErrorMessage: string,
+    options?: {fallbackToBroadcastOnFailedLock?: boolean}
   ): Promise<RefreshTokenResult> => {
     const lock = await tabSync.tryWithRefreshLock(operation);
 
-    if (lock.ran) {
-      if (lock.value.success) {
-        await tabSync.applyTokensFromResult(lock.value);
-        const tokens = tokensFromRefreshResult(lock.value);
-        if (tokens) {
-          tabSync.broadcastTokens(tokens);
-        }
+    if (lock.ran && isSuccessResult(lock.value)) {
+      await tabSync.applyTokensFromResult(lock.value);
+      const tokens = tokensFromRefreshResult(lock.value);
+      if (tokens) {
+        tabSync.broadcastTokens(tokens);
       }
       return lock.value;
     }
 
-    const tokens = await tabSync.waitForTokenBroadcast();
-    if (tokens) {
-      return {
-        success: true,
-        [StorageKeys.accessToken]: tokens.accessToken,
-        [StorageKeys.idToken]: tokens.idToken,
-        ...(tokens.refreshToken
-          ? {[StorageKeys.refreshToken]: tokens.refreshToken}
-          : {})
-      };
+    const waitForPeerTokens =
+      !lock.ran ||
+      (lock.ran && options?.fallbackToBroadcastOnFailedLock === true);
+
+    if (waitForPeerTokens) {
+      // Lost the lock, or won the LS lock but refresh failed (e.g. token already used by another tab)
+      const tokens = await tabSync.waitForTokenBroadcast();
+      if (tokens) {
+        await tabSync.applyTokens(tokens);
+        return {
+          success: true,
+          [StorageKeys.accessToken]: tokens.accessToken,
+          [StorageKeys.idToken]: tokens.idToken,
+          ...(tokens.refreshToken
+            ? {[StorageKeys.refreshToken]: tokens.refreshToken}
+            : {})
+        };
+      }
+    }
+
+    if (lock.ran) {
+      return lock.value;
     }
 
     return {
@@ -257,7 +272,8 @@ const createKindeClient = async (
   ) =>
     withTabSyncCoordination(
       () => runJsUtilsRefresh(refreshType),
-      'Token refresh in progress in another tab'
+      'Token refresh in progress in another tab',
+      {fallbackToBroadcastOnFailedLock: true}
     );
 
   storageSettings.onRefreshHandler = (refreshType) =>

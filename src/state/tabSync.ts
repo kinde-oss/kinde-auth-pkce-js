@@ -82,7 +82,7 @@ const getTabId = (): string => {
   return id;
 };
 
-const isSuccessResult = (
+export const isSuccessResult = (
   result: RefreshTokenResult
 ): result is RefreshTokenResultSuccess =>
   result.success === true &&
