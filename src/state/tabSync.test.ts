@@ -378,6 +378,48 @@ describe('tabSync', () => {
     expect(onVisible).toHaveBeenCalled();
   });
 
+  test('waitForTokenBroadcast resolves when applyTokens fails on tokens_updated', async () => {
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(jest.fn());
+    const failingStore = {
+      ...store,
+      setItems: jest.fn().mockRejectedValue(new Error('storage full'))
+    };
+    const tabSync = createTrackedTabSync({store: failingStore});
+    const onTokensUpdated = jest.fn();
+
+    tabSync.setupListeners({onTokensUpdated});
+
+    const waitPromise = tabSync.waitForTokenBroadcast(5000);
+
+    const message = {
+      type: 'tokens_updated' as const,
+      tabId: 'other-tab-id',
+      tokens: SAMPLE_TOKENS
+    };
+
+    const storageHandler = (
+      window.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'storage')?.[1] as
+      | ((event: StorageEvent) => void)
+      | undefined;
+
+    storageHandler?.({
+      key: 'kinde_token_sync',
+      newValue: JSON.stringify(message)
+    } as StorageEvent);
+
+    await expect(waitPromise).resolves.toEqual(SAMPLE_TOKENS);
+    expect(onTokensUpdated).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to apply synced tokens:',
+      expect.any(Error)
+    );
+
+    consoleError.mockRestore();
+  });
+
   test('waitForTokenBroadcast resolves when a storage event delivers tokens', async () => {
     const tabSync = createTrackedTabSync({store});
     tabSync.setupListeners({});

@@ -309,10 +309,16 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     if (message.tabId === tabId) return;
 
     if (message.type === 'tokens_updated') {
-      void applyTokens(message.tokens).then(() => {
-        handlers.onTokensUpdated?.(message.tokens);
-        notifyBroadcastWaiters(message.tokens);
-      });
+      void applyTokens(message.tokens)
+        .then(() => {
+          handlers.onTokensUpdated?.(message.tokens);
+        })
+        .catch((error) => {
+          console.error('Failed to apply synced tokens:', error);
+        })
+        .finally(() => {
+          notifyBroadcastWaiters(message.tokens);
+        });
     } else if (message.type === 'session_cleared') {
       store.reset();
       clearMirroredRefreshToken();
