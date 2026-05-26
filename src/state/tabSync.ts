@@ -368,22 +368,30 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
   ): (() => void) => {
     if (!isBrowser()) return () => undefined;
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+    let pendingCheck: ReturnType<typeof setTimeout> | undefined;
+
+    const scheduleCheck = () => {
+      if (pendingCheck !== undefined) return;
+      pendingCheck = setTimeout(() => {
+        pendingCheck = undefined;
         void onVisible();
-      }
+      }, 0);
     };
 
-    const onFocus = () => {
-      void onVisible();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleCheck();
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('focus', onFocus);
+    window.addEventListener('focus', scheduleCheck);
 
     return () => {
+      if (pendingCheck !== undefined) {
+        clearTimeout(pendingCheck);
+        pendingCheck = undefined;
+      }
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', scheduleCheck);
     };
   };
 

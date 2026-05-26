@@ -361,7 +361,7 @@ describe('tabSync', () => {
     expect(removeSessionItem).toHaveBeenCalledWith(StorageKeys.refreshToken);
   });
 
-  test('setupVisibilitySync invokes callback when the document becomes visible', () => {
+  test('setupVisibilitySync invokes callback when the document becomes visible', async () => {
     const tabSync = createTrackedTabSync({store});
     const onVisible = jest.fn();
 
@@ -375,7 +375,32 @@ describe('tabSync', () => {
 
     visibilityHandler?.();
 
-    expect(onVisible).toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onVisible).toHaveBeenCalledTimes(1);
+  });
+
+  test('setupVisibilitySync deduplicates visibilitychange and focus in the same tick', async () => {
+    const tabSync = createTrackedTabSync({store});
+    const onVisible = jest.fn();
+
+    tabSync.setupVisibilitySync(onVisible);
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      | (() => void)
+      | undefined;
+    const focusHandler = (window.addEventListener as jest.Mock).mock.calls.find(
+      ([event]) => event === 'focus'
+    )?.[1] as (() => void) | undefined;
+
+    visibilityHandler?.();
+    focusHandler?.();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onVisible).toHaveBeenCalledTimes(1);
   });
 
   test('waitForTokenBroadcast resolves when applyTokens fails on tokens_updated', async () => {
