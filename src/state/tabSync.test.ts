@@ -435,14 +435,16 @@ describe('tabSync', () => {
       newValue: JSON.stringify(message)
     } as StorageEvent);
 
-    await expect(waitPromise).resolves.toEqual(SAMPLE_TOKENS);
-    expect(onTokensUpdated).not.toHaveBeenCalled();
-    expect(consoleError).toHaveBeenCalledWith(
-      'Failed to apply synced tokens:',
-      expect.any(Error)
-    );
-
-    consoleError.mockRestore();
+    try {
+      await expect(waitPromise).resolves.toEqual(SAMPLE_TOKENS);
+      expect(onTokensUpdated).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to apply synced tokens:',
+        expect.any(Error)
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   test('waitForTokenBroadcast resolves when a storage event delivers tokens', async () => {
