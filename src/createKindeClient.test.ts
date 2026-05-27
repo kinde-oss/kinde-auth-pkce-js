@@ -125,6 +125,7 @@ describe('createKindeClient invitation flow', () => {
   });
 
   afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
     jest.clearAllMocks();
   });
 
@@ -213,6 +214,7 @@ describe('refresh token storage routing (expired access → refresh recovery)', 
   });
 
   afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
     jest.clearAllMocks();
   });
 
@@ -329,6 +331,7 @@ describe('on_redirect_callback semantics', () => {
   });
 
   afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
     jest.clearAllMocks();
   });
 
@@ -396,6 +399,7 @@ describe('on_session_restore_callback semantics', () => {
   });
 
   afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
     jest.clearAllMocks();
   });
 
@@ -462,6 +466,7 @@ describe('legacy localStorage refresh key migration', () => {
   });
 
   afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
     jest.clearAllMocks();
   });
 
