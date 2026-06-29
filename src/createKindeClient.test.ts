@@ -22,6 +22,7 @@ jest.mock('./kindeUtils', () => {
     setInsecureStorage: jest.fn(),
     checkAuth: jest.fn().mockResolvedValue({success: false}),
     exchangeAuthCode: jest.fn().mockResolvedValue({success: true}),
+    isAuthenticated: jest.fn().mockResolvedValue(false),
     getUserProfile: jest.fn().mockResolvedValue(undefined),
     navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
       (global as typeof globalThis & {location: {href: string}}).location.href =
@@ -36,7 +37,9 @@ import {
   checkAuth,
   exchangeAuthCode,
   getUserProfile,
-  storageSettings
+  isAuthenticated,
+  storageSettings,
+  StorageKeys
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
@@ -46,6 +49,7 @@ const mockSetActiveStorage = setActiveStorage as jest.Mock;
 const mockCheckAuth = checkAuth as jest.Mock;
 const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
 const mockGetUserProfile = getUserProfile as jest.Mock;
+const mockIsAuthenticated = isAuthenticated as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 
 type StorageMock = {
@@ -384,6 +388,8 @@ describe('on_session_restore_callback semantics', () => {
     mockCheckAuth.mockClear();
     mockExchangeAuthCode.mockClear();
     mockGetUserProfile.mockReset();
+    mockIsAuthenticated.mockReset();
+    mockIsAuthenticated.mockResolvedValue(false);
     store.reset();
     Object.defineProperty(global, 'sessionStorage', {
       value: createStorageMock(),
@@ -405,7 +411,14 @@ describe('on_session_restore_callback semantics', () => {
 
   it('fires session restore callback on non-redirect authenticated load', async () => {
     setWindowLocation();
-    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    mockIsAuthenticated.mockResolvedValue(true);
+    mockGetUserProfile.mockResolvedValue({
+      id: 'kp:user-1',
+      givenName: 'Test',
+      familyName: 'User',
+      email: 'u@x.com',
+      picture: undefined
+    });
     const onSessionRestore = jest.fn();
 
     await createKindeClient({
@@ -416,12 +429,52 @@ describe('on_session_restore_callback semantics', () => {
 
     expect(onSessionRestore).toHaveBeenCalledTimes(1);
     expect(onSessionRestore).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'kp:user-1'}),
+      expect.objectContaining({id: 'kp:user-1', email: 'u@x.com'}),
       expect.objectContaining({
         kindeOriginUrl: 'http://localhost:3000/',
         kinde: {event: 'session_restore'}
       })
     );
+  });
+
+  it('populates getUser on session restore without callback when id token is present', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(true);
+    mockGetUserProfile.mockResolvedValue(undefined);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:user-1',
+        email: 'u@x.com',
+        given_name: 'Test',
+        family_name: 'User'
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(mockGetUserProfile).toHaveBeenCalled();
+    expect(client.getUser()).toMatchObject({
+      id: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+  });
+
+  it('does not fetch user profile when session is not authenticated', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(mockGetUserProfile).not.toHaveBeenCalled();
   });
 
   it('does not fire session restore callback on redirect handling load', async () => {

@@ -287,19 +287,6 @@ const createKindeClient = async (
       }
     }, 'Authentication check in progress in another tab');
 
-  tabSync.setupListeners({});
-  tabSync.setupVisibilitySync(() => {
-    void runCheckAuthWithTabSync().catch((error) => {
-      console.warn('checkAuth failed:', error);
-      on_error_callback?.({
-        error: 'ERR_CHECK_AUTH',
-        errorDescription: String(error),
-        state: '',
-        appState: {}
-      });
-    });
-  });
-
   const config = {
     audience,
     client_id,
@@ -471,6 +458,36 @@ const createKindeClient = async (
     return key === storageMap.access_token
       ? bundle?.access_token
       : bundle?.id_token;
+  };
+
+  const hydrateUserFromIdToken = (): KindeUser | undefined => {
+    const sessionToken = store.getSessionItem(StorageKeys.idToken) as
+      | string
+      | null
+      | undefined;
+    const idTokenRaw =
+      (typeof sessionToken === 'string' ? sessionToken : undefined) ||
+      readLegacyRawToken(storageMap.id_token);
+
+    if (!idTokenRaw) return;
+
+    try {
+      const claims = jwtDecode<JWT & KindeUser>(idTokenRaw);
+      if (!claims.sub) return;
+
+      const mappedUser: KindeUser = {
+        id: claims.sub,
+        given_name: claims.given_name,
+        family_name: claims.family_name,
+        email: claims.email,
+        picture: claims.picture
+      };
+
+      store.setItem(storageMap.user, mappedUser);
+      return mappedUser;
+    } catch {
+      return;
+    }
   };
 
   const getAccessToken = async () => {
@@ -691,7 +708,7 @@ const createKindeClient = async (
           tabSync.broadcastTokens(syncedTokens);
         }
 
-        const user = await getUserProfile();
+        const user = (await getUserProfile()) ?? hydrateUserFromIdToken();
         if (user) {
           on_redirect_callback?.(user, storedAppState);
         }
@@ -879,6 +896,7 @@ const createKindeClient = async (
         // On custom domains, refresh uses the httpOnly _kbrte cookie (credentials: include);
         // the refresh_token field is intentionally omitted from the POST body.
         await runCheckAuthWithTabSync();
+        hydrateUserFromIdToken();
       } catch (err) {
         console.warn('checkAuth failed:', err);
         on_error_callback?.({
@@ -934,24 +952,27 @@ const createKindeClient = async (
         return;
       }
 
-      if (on_session_restore_callback) {
-        try {
-          const user = await getUserProfile();
-          if (user) {
+      try {
+        hydrateUserFromIdToken();
+
+        const authed = await isAuthenticated();
+        if (authed) {
+          const user = (await getUserProfile()) ?? getUser();
+          if (user && on_session_restore_callback) {
             on_session_restore_callback(user, {
               kindeOriginUrl: window.location.href,
               kinde: {event: 'session_restore'}
             });
           }
-        } catch (error) {
-          console.warn('Error getting user profile', error);
-          on_error_callback?.({
-            error: 'ERR_GET_USER_PROFILE',
-            errorDescription: String(error),
-            state: '',
-            appState: {}
-          });
         }
+      } catch (error) {
+        console.warn('Error restoring user session', error);
+        on_error_callback?.({
+          error: 'ERR_GET_USER_PROFILE',
+          errorDescription: String(error),
+          state: '',
+          appState: {}
+        });
       }
 
       return;
@@ -983,6 +1004,27 @@ const createKindeClient = async (
       currentRedirectUri === `${expectedRedirectUri}/`
     );
   };
+
+  tabSync.setupListeners({
+    onTokensUpdated: () => {
+      hydrateUserFromIdToken();
+    }
+  });
+  tabSync.setupVisibilitySync(() => {
+    void runCheckAuthWithTabSync()
+      .then(() => {
+        hydrateUserFromIdToken();
+      })
+      .catch((error) => {
+        console.warn('checkAuth failed:', error);
+        on_error_callback?.({
+          error: 'ERR_CHECK_AUTH',
+          errorDescription: String(error),
+          state: '',
+          appState: {}
+        });
+      });
+  });
 
   await init();
 
