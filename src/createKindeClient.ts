@@ -229,6 +229,7 @@ const createKindeClient = async (
 
     if (lock.ran && isSuccessResult(lock.value)) {
       await tabSync.applyTokensFromResult(lock.value);
+      await hydrateUserFromIdToken();
       const tokens = tokensFromRefreshResult(lock.value);
       if (tokens) {
         tabSync.broadcastTokens(tokens);
@@ -460,15 +461,8 @@ const createKindeClient = async (
       : bundle?.id_token;
   };
 
-  const hydrateUserFromIdToken = (): KindeUser | undefined => {
-    const sessionToken = store.getSessionItem(StorageKeys.idToken) as
-      | string
-      | null
-      | undefined;
-    const idTokenRaw =
-      (typeof sessionToken === 'string' ? sessionToken : undefined) ||
-      readLegacyRawToken(storageMap.id_token);
-
+  const hydrateUserFromIdToken = async (): Promise<KindeUser | undefined> => {
+    const idTokenRaw = await getIdToken();
     if (!idTokenRaw) return;
 
     try {
@@ -708,7 +702,8 @@ const createKindeClient = async (
           tabSync.broadcastTokens(syncedTokens);
         }
 
-        const user = (await getUserProfile()) ?? hydrateUserFromIdToken();
+        const user =
+          (await getUserProfile()) ?? (await hydrateUserFromIdToken());
         if (user) {
           on_redirect_callback?.(user, storedAppState);
         }
@@ -896,7 +891,7 @@ const createKindeClient = async (
         // On custom domains, refresh uses the httpOnly _kbrte cookie (credentials: include);
         // the refresh_token field is intentionally omitted from the POST body.
         await runCheckAuthWithTabSync();
-        hydrateUserFromIdToken();
+        await hydrateUserFromIdToken();
       } catch (err) {
         console.warn('checkAuth failed:', err);
         on_error_callback?.({
@@ -953,7 +948,7 @@ const createKindeClient = async (
       }
 
       try {
-        hydrateUserFromIdToken();
+        await hydrateUserFromIdToken();
 
         const authed = await isAuthenticated();
         if (authed) {
@@ -1007,13 +1002,13 @@ const createKindeClient = async (
 
   tabSync.setupListeners({
     onTokensUpdated: () => {
-      hydrateUserFromIdToken();
+      void hydrateUserFromIdToken();
     }
   });
   tabSync.setupVisibilitySync(() => {
     void runCheckAuthWithTabSync()
-      .then(() => {
-        hydrateUserFromIdToken();
+      .then(async () => {
+        await hydrateUserFromIdToken();
       })
       .catch((error) => {
         console.warn('checkAuth failed:', error);
