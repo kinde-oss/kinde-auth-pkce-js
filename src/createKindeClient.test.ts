@@ -477,6 +477,27 @@ describe('on_session_restore_callback semantics', () => {
     expect(mockGetUserProfile).not.toHaveBeenCalled();
   });
 
+  it('does not hydrate user from stale id token when session is not authenticated', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:stale-user',
+        email: 'stale@x.com',
+        given_name: 'Stale',
+        family_name: 'User'
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+  });
+
   it('does not fire session restore callback on redirect handling load', async () => {
     const state = b64url({kinde: {event: 'login'}});
     setWindowLocation(`?code=auth-code&state=${state}`);

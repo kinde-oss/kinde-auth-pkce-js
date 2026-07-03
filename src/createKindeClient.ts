@@ -891,7 +891,6 @@ const createKindeClient = async (
         // On custom domains, refresh uses the httpOnly _kbrte cookie (credentials: include);
         // the refresh_token field is intentionally omitted from the POST body.
         await runCheckAuthWithTabSync();
-        await hydrateUserFromIdToken();
       } catch (err) {
         console.warn('checkAuth failed:', err);
         on_error_callback?.({
@@ -948,10 +947,9 @@ const createKindeClient = async (
       }
 
       try {
-        await hydrateUserFromIdToken();
-
         const authed = await isAuthenticated();
         if (authed) {
+          await hydrateUserFromIdToken();
           const user = (await getUserProfile()) ?? getUser();
           if (user && on_session_restore_callback) {
             on_session_restore_callback(user, {
