@@ -519,6 +519,109 @@ describe('on_session_restore_callback semantics', () => {
   });
 });
 
+describe('visibility sync hydration', () => {
+  const setupVisibilityBrowserMocks = () => {
+    setWindowLocation();
+    Object.defineProperty(global, 'window', {
+      value: {
+        ...(global.window as object),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn()
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'document', {
+      value: {
+        visibilityState: 'visible',
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn()
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'navigator', {
+      value: {
+        locks: {
+          request: async (
+            _name: string,
+            _options: {ifAvailable: boolean},
+            callback: (lock: object) => Promise<void>
+          ) => {
+            await callback({});
+          }
+        }
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });
+  };
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockCheckAuth.mockResolvedValue({success: false});
+    mockIsAuthenticated.mockReset();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.reset();
+    setupVisibilityBrowserMocks();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  it('does not hydrate user from stale id token after failed visibility checkAuth', async () => {
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:stale-user',
+        email: 'stale@x.com',
+        given_name: 'Stale',
+        family_name: 'User'
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      | (() => void)
+      | undefined;
+
+    mockCheckAuth.mockClear();
+    visibilityHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockCheckAuth).toHaveBeenCalled();
+    expect(client.getUser()).toBeFalsy();
+  });
+});
+
 describe('legacy localStorage refresh key migration', () => {
   beforeEach(() => {
     mockSetActiveStorage.mockReset();

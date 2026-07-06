@@ -1005,8 +1005,10 @@ const createKindeClient = async (
   });
   tabSync.setupVisibilitySync(() => {
     void runCheckAuthWithTabSync()
-      .then(async () => {
-        await hydrateUserFromIdToken();
+      .then(async (result) => {
+        if (isSuccessResult(result)) {
+          await hydrateUserFromIdToken();
+        }
       })
       .catch((error) => {
         console.warn('checkAuth failed:', error);
