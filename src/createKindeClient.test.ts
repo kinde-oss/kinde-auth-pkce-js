@@ -651,6 +651,51 @@ describe('visibility sync hydration', () => {
     expect(mockCheckAuth).toHaveBeenCalled();
     expect(client.getUser()).toBeFalsy();
   });
+
+  it('hydrates user after successful visibility-triggered checkAuth', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = makeJwt({exp: now + 3600, sub: 'kp:user-1'});
+    const idToken = makeJwt({
+      sub: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+
+    mockCheckAuth.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: accessToken,
+      [StorageKeys.idToken]: idToken,
+      [StorageKeys.refreshToken]: 'refresh-token'
+    });
+    mockIsAuthenticated.mockResolvedValue(true);
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      | (() => void)
+      | undefined;
+
+    mockCheckAuth.mockClear();
+    visibilityHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockCheckAuth).toHaveBeenCalled();
+    expect(client.getUser()).toMatchObject({
+      id: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+  });
 });
 
 describe('legacy localStorage refresh key migration', () => {
