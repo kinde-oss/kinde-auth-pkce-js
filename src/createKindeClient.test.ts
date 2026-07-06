@@ -498,6 +498,24 @@ describe('on_session_restore_callback semantics', () => {
     expect(client.getUser()).toBeFalsy();
   });
 
+  it('clears previously stored user when session is not authenticated on init', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+  });
+
   it('does not fire session restore callback on redirect handling load', async () => {
     const state = b64url({kinde: {event: 'login'}});
     setWindowLocation(`?code=auth-code&state=${state}`);
@@ -598,6 +616,12 @@ describe('visibility sync hydration', () => {
         family_name: 'User'
       })
     );
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
 
     const client = await createKindeClient({
       domain: 'https://example.kinde.com',
@@ -605,6 +629,13 @@ describe('visibility sync hydration', () => {
     });
 
     expect(client.getUser()).toBeFalsy();
+
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
 
     const visibilityHandler = (
       document.addEventListener as jest.Mock

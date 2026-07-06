@@ -957,6 +957,8 @@ const createKindeClient = async (
               kinde: {event: 'session_restore'}
             });
           }
+        } else {
+          store.removeItem(storageMap.user);
         }
       } catch (error) {
         console.warn('Error restoring user session', error);
@@ -1005,9 +1007,11 @@ const createKindeClient = async (
   });
   tabSync.setupVisibilitySync(() => {
     void runCheckAuthWithTabSync()
-      .then(async (result) => {
-        if (isSuccessResult(result)) {
+      .then(async () => {
+        if (await isAuthenticated()) {
           await hydrateUserFromIdToken();
+        } else {
+          store.removeItem(storageMap.user);
         }
       })
       .catch((error) => {
