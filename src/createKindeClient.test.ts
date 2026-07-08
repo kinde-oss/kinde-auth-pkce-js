@@ -23,6 +23,7 @@ jest.mock('./kindeUtils', () => {
     checkAuth: jest.fn().mockResolvedValue({success: false}),
     exchangeAuthCode: jest.fn().mockResolvedValue({success: true}),
     getUserProfile: jest.fn().mockResolvedValue(undefined),
+    refreshToken: jest.fn().mockResolvedValue({success: false}),
     navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
       (global as typeof globalThis & {location: {href: string}}).location.href =
         opts.url;
@@ -36,7 +37,9 @@ import {
   checkAuth,
   exchangeAuthCode,
   getUserProfile,
-  storageSettings
+  refreshToken,
+  storageSettings,
+  StorageKeys
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
@@ -46,6 +49,7 @@ const mockSetActiveStorage = setActiveStorage as jest.Mock;
 const mockCheckAuth = checkAuth as jest.Mock;
 const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
 const mockGetUserProfile = getUserProfile as jest.Mock;
+const mockRefreshToken = refreshToken as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 
 type StorageMock = {
@@ -573,5 +577,107 @@ describe('storageSettings.useInsecureForRefreshToken configuration', () => {
     });
 
     expect(storageSettings.useInsecureForRefreshToken).toBe(true);
+  });
+});
+
+describe('getAccessToken refresh behaviour', () => {
+  const domain = 'https://example.kinde.com';
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockRefreshToken.mockReset();
+    mockIsJWTActive.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });
+    storageSettings.onRefreshHandler = undefined;
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  it('returns an active token without calling refresh', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(true);
+    const activeJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 600});
+    store.setSessionItem(StorageKeys.accessToken, activeJwt);
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const token = await client.getAccessToken();
+
+    expect(token).toBe(activeJwt);
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('refreshes and returns a new token when the stored access token is expired', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const token = await client.getAccessToken();
+
+    expect(mockRefreshToken).toHaveBeenCalled();
+    expect(token).toBe(freshJwt);
+  });
+
+  it('returns undefined without clearing storage when refresh fails', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(StorageKeys.refreshToken, 'rt-keep');
+    mockRefreshToken.mockResolvedValue({
+      success: false,
+      error: 'invalid_grant'
+    });
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const token = await client.getAccessToken();
+
+    expect(token).toBeUndefined();
+    expect(store.getSessionItem(StorageKeys.refreshToken)).toBe('rt-keep');
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBe(expiredJwt);
   });
 });

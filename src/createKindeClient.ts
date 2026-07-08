@@ -460,6 +460,32 @@ const createKindeClient = async (
     return false;
   };
 
+  const isAuthLockContention = (error?: string): boolean =>
+    error === 'Authentication check in progress in another tab' ||
+    error === 'Token refresh in progress in another tab';
+
+  const getStoredAccessToken = async (): Promise<string | JWT | undefined> => {
+    const sessionToken = (await store.getSessionItem(
+      StorageKeys.accessToken
+    )) as string | undefined;
+    const legacyToken = readLegacyRawToken(storageMap.access_token);
+    return sessionToken || legacyToken;
+  };
+
+  const isStoredAccessTokenActive = (
+    token: string | JWT | undefined
+  ): boolean => {
+    if (!token) return false;
+    if (typeof token === 'string') {
+      try {
+        return isJWTActive(jwtDecode<JWT>(token));
+      } catch {
+        return false;
+      }
+    }
+    return isJWTActive(token);
+  };
+
   const readLegacyRawToken = (
     key: storageMap.access_token | storageMap.id_token
   ): string | undefined => {
@@ -474,10 +500,28 @@ const createKindeClient = async (
   };
 
   const getAccessToken = async () => {
-    // js-utils (exchangeAuthCode, checkAuth) stores under StorageKeys.accessToken
-    const sessionToken = await store.getSessionItem(StorageKeys.accessToken);
-    const legacyToken = readLegacyRawToken(storageMap.access_token);
-    return (sessionToken || legacyToken) as string | undefined;
+    const tokenToReturn = await getStoredAccessToken();
+
+    if (isStoredAccessTokenActive(tokenToReturn)) {
+      return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
+    }
+
+    const result = await runRefreshWithTabSync(RefreshType.refreshToken);
+
+    if (isSuccessResult(result)) {
+      return result[StorageKeys.accessToken];
+    }
+
+    if (isAuthLockContention(result.error)) {
+      const token = await getStoredAccessToken();
+      if (isStoredAccessTokenActive(token) && typeof token === 'string') {
+        return token;
+      }
+      return undefined;
+    }
+
+    // Refresh failed — return undefined without clearing session storage.
+    return undefined;
   };
 
   const getIdToken = async () => {
