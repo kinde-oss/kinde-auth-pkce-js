@@ -517,7 +517,13 @@ const createKindeClient = async (
       return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
     }
 
-    const result = await runRefreshWithTabSync(RefreshType.refreshToken);
+    let result: RefreshTokenResult;
+    try {
+      result = await runRefreshWithTabSync(RefreshType.refreshToken);
+    } catch {
+      // Refresh failed — return undefined without clearing session storage.
+      return undefined;
+    }
 
     if (isSuccessResult(result)) {
       return result[StorageKeys.accessToken];

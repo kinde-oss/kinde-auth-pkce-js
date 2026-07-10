@@ -838,6 +838,7 @@ describe('getAccessToken refresh behaviour', () => {
   beforeEach(() => {
     mockSetActiveStorage.mockReset();
     mockCheckAuth.mockClear();
+    mockCheckAuth.mockResolvedValue({success: false});
     mockRefreshToken.mockReset();
     mockIsJWTActive.mockReset();
     store.reset();
