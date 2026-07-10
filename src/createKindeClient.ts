@@ -221,7 +221,9 @@ const createKindeClient = async (
     }
   };
 
-  const withTabSyncCoordination = async (
+  let inFlightTabCoordination: Promise<RefreshTokenResult> | null = null;
+
+  const runTabSyncCoordination = async (
     operation: () => Promise<RefreshTokenResult>,
     inProgressErrorMessage: string
   ): Promise<RefreshTokenResult> => {
@@ -264,6 +266,27 @@ const createKindeClient = async (
       success: false,
       error: inProgressErrorMessage
     };
+  };
+
+  const withTabSyncCoordination = (
+    operation: () => Promise<RefreshTokenResult>,
+    inProgressErrorMessage: string
+  ): Promise<RefreshTokenResult> => {
+    if (inFlightTabCoordination) {
+      return inFlightTabCoordination;
+    }
+
+    const coordination = runTabSyncCoordination(
+      operation,
+      inProgressErrorMessage
+    ).finally(() => {
+      if (inFlightTabCoordination === coordination) {
+        inFlightTabCoordination = null;
+      }
+    });
+
+    inFlightTabCoordination = coordination;
+    return coordination;
   };
 
   const runRefreshWithTabSync = (

@@ -217,11 +217,15 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     }
   };
 
-  const tryWithRefreshLock = async <T>(
+  type RefreshLockResult<T> =
+    | {ran: true; value: T; usedAmbiguousFallback: boolean}
+    | {ran: false};
+
+  let sameTabLockAttempt: Promise<RefreshLockResult<unknown>> | null = null;
+
+  const runCrossTabRefreshLock = async <T>(
     fn: () => Promise<T>
-  ): Promise<
-    {ran: true; value: T; usedAmbiguousFallback: boolean} | {ran: false}
-  > => {
+  ): Promise<RefreshLockResult<T>> => {
     if (!isBrowser()) {
       return {ran: true, value: await fn(), usedAmbiguousFallback: false};
     }
@@ -266,6 +270,22 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     } finally {
       clearLsLockIfOwner();
     }
+  };
+
+  const tryWithRefreshLock = <T>(
+    fn: () => Promise<T>
+  ): Promise<RefreshLockResult<T>> => {
+    if (sameTabLockAttempt) {
+      return sameTabLockAttempt as Promise<RefreshLockResult<T>>;
+    }
+
+    const attempt = runCrossTabRefreshLock(fn).finally(() => {
+      if (sameTabLockAttempt === attempt) {
+        sameTabLockAttempt = null;
+      }
+    });
+    sameTabLockAttempt = attempt;
+    return attempt;
   };
 
   const waitForTokenBroadcast = (

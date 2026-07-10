@@ -158,6 +158,35 @@ describe('tabSync', () => {
     expect(store.getSessionItem(StorageKeys.idToken)).toBe('existing-id');
   });
 
+  test('tryWithRefreshLock deduplicates concurrent callers in the same tab', async () => {
+    const tabSync = createTrackedTabSync({store});
+    let resolveFn!: (value: string) => void;
+    const fn = jest.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFn = resolve;
+        })
+    );
+
+    const first = tabSync.tryWithRefreshLock(fn);
+    const second = tabSync.tryWithRefreshLock(fn);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    resolveFn('ok');
+
+    await expect(first).resolves.toEqual({
+      ran: true,
+      value: 'ok',
+      usedAmbiguousFallback: true
+    });
+    await expect(second).resolves.toEqual({
+      ran: true,
+      value: 'ok',
+      usedAmbiguousFallback: true
+    });
+  });
+
   test('tryWithRefreshLock runs the callback when the lock is available', async () => {
     const tabSync = createTrackedTabSync({store});
     const fn = jest.fn().mockResolvedValue('ok');

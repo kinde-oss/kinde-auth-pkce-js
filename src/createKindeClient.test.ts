@@ -911,6 +911,40 @@ describe('getAccessToken refresh behaviour', () => {
     expect(token).toBe(freshJwt);
   });
 
+  it('deduplicates concurrent getAccessToken refresh attempts in the same tab', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+    mockRefreshToken.mockClear();
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const [first, second] = await Promise.all([
+      client.getAccessToken(),
+      client.getAccessToken()
+    ]);
+
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    expect(first).toBe(freshJwt);
+    expect(second).toBe(freshJwt);
+  });
+
   it('returns undefined without clearing storage when refresh fails', async () => {
     setWindowLocation();
     mockIsJWTActive.mockReturnValue(false);
