@@ -22,6 +22,7 @@ jest.mock('./kindeUtils', () => {
     setInsecureStorage: jest.fn(),
     checkAuth: jest.fn().mockResolvedValue({success: false}),
     exchangeAuthCode: jest.fn().mockResolvedValue({success: true}),
+    isAuthenticated: jest.fn().mockResolvedValue(false),
     getUserProfile: jest.fn().mockResolvedValue(undefined),
     refreshToken: jest.fn().mockResolvedValue({success: false}),
     navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
@@ -38,6 +39,7 @@ import {
   exchangeAuthCode,
   getUserProfile,
   refreshToken,
+  isAuthenticated,
   storageSettings,
   StorageKeys
 } from './kindeUtils';
@@ -50,6 +52,7 @@ const mockCheckAuth = checkAuth as jest.Mock;
 const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
 const mockGetUserProfile = getUserProfile as jest.Mock;
 const mockRefreshToken = refreshToken as jest.Mock;
+const mockIsAuthenticated = isAuthenticated as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 
 type StorageMock = {
@@ -388,6 +391,8 @@ describe('on_session_restore_callback semantics', () => {
     mockCheckAuth.mockClear();
     mockExchangeAuthCode.mockClear();
     mockGetUserProfile.mockReset();
+    mockIsAuthenticated.mockReset();
+    mockIsAuthenticated.mockResolvedValue(false);
     store.reset();
     Object.defineProperty(global, 'sessionStorage', {
       value: createStorageMock(),
@@ -409,7 +414,14 @@ describe('on_session_restore_callback semantics', () => {
 
   it('fires session restore callback on non-redirect authenticated load', async () => {
     setWindowLocation();
-    mockGetUserProfile.mockResolvedValue({id: 'kp:user-1', email: 'u@x.com'});
+    mockIsAuthenticated.mockResolvedValue(true);
+    mockGetUserProfile.mockResolvedValue({
+      id: 'kp:user-1',
+      givenName: 'Test',
+      familyName: 'User',
+      email: 'u@x.com',
+      picture: undefined
+    });
     const onSessionRestore = jest.fn();
 
     await createKindeClient({
@@ -420,12 +432,91 @@ describe('on_session_restore_callback semantics', () => {
 
     expect(onSessionRestore).toHaveBeenCalledTimes(1);
     expect(onSessionRestore).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'kp:user-1'}),
+      expect.objectContaining({id: 'kp:user-1', email: 'u@x.com'}),
       expect.objectContaining({
         kindeOriginUrl: 'http://localhost:3000/',
         kinde: {event: 'session_restore'}
       })
     );
+  });
+
+  it('populates getUser on session restore without callback when id token is present', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(true);
+    mockGetUserProfile.mockResolvedValue(undefined);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:user-1',
+        email: 'u@x.com',
+        given_name: 'Test',
+        family_name: 'User'
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(mockGetUserProfile).toHaveBeenCalled();
+    expect(client.getUser()).toMatchObject({
+      id: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+  });
+
+  it('does not fetch user profile when session is not authenticated', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(mockGetUserProfile).not.toHaveBeenCalled();
+  });
+
+  it('does not hydrate user from stale id token when session is not authenticated', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:stale-user',
+        email: 'stale@x.com',
+        given_name: 'Stale',
+        family_name: 'User'
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+  });
+
+  it('clears previously stored user when session is not authenticated on init', async () => {
+    setWindowLocation();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
   });
 
   it('does not fire session restore callback on redirect handling load', async () => {
@@ -446,6 +537,167 @@ describe('on_session_restore_callback semantics', () => {
     });
 
     expect(onSessionRestore).not.toHaveBeenCalled();
+  });
+});
+
+describe('visibility sync hydration', () => {
+  const setupVisibilityBrowserMocks = () => {
+    setWindowLocation();
+    Object.defineProperty(global, 'window', {
+      value: {
+        ...(global.window as object),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn()
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'document', {
+      value: {
+        visibilityState: 'visible',
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn()
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'navigator', {
+      value: {
+        locks: {
+          request: async (
+            _name: string,
+            _options: {ifAvailable: boolean},
+            callback: (lock: object) => Promise<void>
+          ) => {
+            await callback({});
+          }
+        }
+      },
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });
+  };
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockCheckAuth.mockResolvedValue({success: false});
+    mockIsAuthenticated.mockReset();
+    mockIsAuthenticated.mockResolvedValue(false);
+    store.reset();
+    setupVisibilityBrowserMocks();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  it('does not hydrate user from stale id token after failed visibility checkAuth', async () => {
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        sub: 'kp:stale-user',
+        email: 'stale@x.com',
+        given_name: 'Stale',
+        family_name: 'User'
+      })
+    );
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+
+    store.setItem(storageMap.user, {
+      id: 'kp:stale-user',
+      email: 'stale@x.com',
+      given_name: 'Stale',
+      family_name: 'User'
+    });
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      | (() => void)
+      | undefined;
+
+    mockCheckAuth.mockClear();
+    visibilityHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockCheckAuth).toHaveBeenCalled();
+    expect(client.getUser()).toBeFalsy();
+  });
+
+  it('hydrates user after successful visibility-triggered checkAuth', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = makeJwt({exp: now + 3600, sub: 'kp:user-1'});
+    const idToken = makeJwt({
+      sub: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(client.getUser()).toBeFalsy();
+
+    mockCheckAuth.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: accessToken,
+      [StorageKeys.idToken]: idToken,
+      [StorageKeys.refreshToken]: 'refresh-token'
+    });
+    mockIsAuthenticated.mockResolvedValue(true);
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      | (() => void)
+      | undefined;
+
+    mockCheckAuth.mockClear();
+    visibilityHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockCheckAuth).toHaveBeenCalled();
+    expect(client.getUser()).toMatchObject({
+      id: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
   });
 });
 
