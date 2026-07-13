@@ -41,7 +41,8 @@ import {
   refreshToken,
   isAuthenticated,
   storageSettings,
-  StorageKeys
+  StorageKeys,
+  RefreshType
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
@@ -907,7 +908,40 @@ describe('getAccessToken refresh behaviour', () => {
 
     const token = await client.getAccessToken();
 
-    expect(mockRefreshToken).toHaveBeenCalled();
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.refreshToken})
+    );
+    expect(token).toBe(freshJwt);
+  });
+
+  it('uses cookie refresh on a production custom domain', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    const token = await client.getAccessToken();
+
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.cookie})
+    );
     expect(token).toBe(freshJwt);
   });
 

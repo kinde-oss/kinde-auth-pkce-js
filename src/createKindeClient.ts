@@ -542,7 +542,9 @@ const createKindeClient = async (
 
     let result: RefreshTokenResult;
     try {
-      result = await runRefreshWithTabSync(RefreshType.refreshToken);
+      result = await runRefreshWithTabSync(
+        isUseCookie ? RefreshType.cookie : RefreshType.refreshToken
+      );
     } catch {
       // Refresh failed — return undefined without clearing session storage.
       return undefined;
