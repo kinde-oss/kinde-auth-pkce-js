@@ -14,7 +14,7 @@ const BROADCAST_WAIT_MS = 10_000;
 
 export type TabSyncTokens = {
   accessToken: string;
-  idToken: string;
+  idToken?: string;
   refreshToken?: string;
 };
 
@@ -146,9 +146,11 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
 
   const applyTokens = async (tokens: TabSyncTokens): Promise<void> => {
     const items: Partial<Record<StorageKeys, string>> = {
-      [StorageKeys.accessToken]: tokens.accessToken,
-      [StorageKeys.idToken]: tokens.idToken
+      [StorageKeys.accessToken]: tokens.accessToken
     };
+    if (tokens.idToken) {
+      items[StorageKeys.idToken] = tokens.idToken;
+    }
     if (tokens.refreshToken) {
       items[StorageKeys.refreshToken] = tokens.refreshToken;
     }
@@ -168,14 +170,14 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     if (!isSuccessResult(result)) return;
 
     const accessToken = result[StorageKeys.accessToken]!;
-    const idToken = result[StorageKeys.idToken];
+    const idToken =
+      result[StorageKeys.idToken] ??
+      ((await store.getSessionItem(StorageKeys.idToken)) as string | null);
     const refreshToken = result[StorageKeys.refreshToken];
-
-    if (!idToken) return;
 
     await applyTokens({
       accessToken,
-      idToken,
+      ...(typeof idToken === 'string' ? {idToken} : {}),
       ...(refreshToken ? {refreshToken} : {})
     });
   };
@@ -215,11 +217,15 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     }
   };
 
-  const tryWithRefreshLock = async <T>(
+  type RefreshLockResult<T> =
+    | {ran: true; value: T; usedAmbiguousFallback: boolean}
+    | {ran: false};
+
+  let sameTabLockAttempt: Promise<RefreshLockResult<unknown>> | null = null;
+
+  const runCrossTabRefreshLock = async <T>(
     fn: () => Promise<T>
-  ): Promise<
-    {ran: true; value: T; usedAmbiguousFallback: boolean} | {ran: false}
-  > => {
+  ): Promise<RefreshLockResult<T>> => {
     if (!isBrowser()) {
       return {ran: true, value: await fn(), usedAmbiguousFallback: false};
     }
@@ -264,6 +270,22 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     } finally {
       clearLsLockIfOwner();
     }
+  };
+
+  const tryWithRefreshLock = <T>(
+    fn: () => Promise<T>
+  ): Promise<RefreshLockResult<T>> => {
+    if (sameTabLockAttempt) {
+      return sameTabLockAttempt as Promise<RefreshLockResult<T>>;
+    }
+
+    const attempt = runCrossTabRefreshLock(fn).finally(() => {
+      if (sameTabLockAttempt === attempt) {
+        sameTabLockAttempt = null;
+      }
+    });
+    sameTabLockAttempt = attempt;
+    return attempt;
   };
 
   const waitForTokenBroadcast = (
@@ -425,10 +447,9 @@ export const tokensFromRefreshResult = (
   if (!isSuccessResult(result)) return null;
   const accessToken = result[StorageKeys.accessToken]!;
   const idToken = result[StorageKeys.idToken];
-  if (!idToken) return null;
   return {
     accessToken,
-    idToken,
+    ...(idToken ? {idToken} : {}),
     ...(result[StorageKeys.refreshToken]
       ? {refreshToken: result[StorageKeys.refreshToken]}
       : {})

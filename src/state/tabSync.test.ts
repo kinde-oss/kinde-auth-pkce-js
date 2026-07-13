@@ -140,19 +140,51 @@ describe('tabSync', () => {
     });
   });
 
-  test('applyTokensFromResult and tokensFromRefreshResult skip when idToken is missing', async () => {
+  test('applyTokensFromResult stores access token when idToken is missing', async () => {
     const tabSync = createTrackedTabSync({store});
+    store.setSessionItem(StorageKeys.idToken, 'existing-id');
     const result = {
       success: true as const,
       [StorageKeys.accessToken]: 'at-only'
     };
 
-    expect(tokensFromRefreshResult(result)).toBeNull();
+    expect(tokensFromRefreshResult(result)).toEqual({
+      accessToken: 'at-only'
+    });
 
     await tabSync.applyTokensFromResult(result);
 
-    expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
-    expect(store.getSessionItem(StorageKeys.idToken)).toBeNull();
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBe('at-only');
+    expect(store.getSessionItem(StorageKeys.idToken)).toBe('existing-id');
+  });
+
+  test('tryWithRefreshLock deduplicates concurrent callers in the same tab', async () => {
+    const tabSync = createTrackedTabSync({store});
+    let resolveFn!: (value: string) => void;
+    const fn = jest.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFn = resolve;
+        })
+    );
+
+    const first = tabSync.tryWithRefreshLock(fn);
+    const second = tabSync.tryWithRefreshLock(fn);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    resolveFn('ok');
+
+    await expect(first).resolves.toEqual({
+      ran: true,
+      value: 'ok',
+      usedAmbiguousFallback: true
+    });
+    await expect(second).resolves.toEqual({
+      ran: true,
+      value: 'ok',
+      usedAmbiguousFallback: true
+    });
   });
 
   test('tryWithRefreshLock runs the callback when the lock is available', async () => {
@@ -299,6 +331,34 @@ describe('tabSync', () => {
 
     expect(store.getSessionItem(StorageKeys.accessToken)).toBe('access-jwt');
     expect(onTokensUpdated).toHaveBeenCalledWith(SAMPLE_TOKENS);
+  });
+
+  test('setupListeners applies access-only tokens_updated messages', async () => {
+    const tabSync = createTrackedTabSync({store});
+    const onTokensUpdated = jest.fn();
+    tabSync.setupListeners({onTokensUpdated});
+
+    const storageHandler = (
+      window.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'storage')?.[1] as
+      | ((event: StorageEvent) => void)
+      | undefined;
+
+    storageHandler?.({
+      key: 'kinde_token_sync',
+      newValue: JSON.stringify({
+        type: 'tokens_updated',
+        tabId: 'other-tab',
+        tokens: {accessToken: 'fresh-access'}
+      })
+    } as StorageEvent);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBe('fresh-access');
+    expect(onTokensUpdated).toHaveBeenCalledWith({
+      accessToken: 'fresh-access'
+    });
   });
 
   test('setupListeners clears the store on session_cleared via storage event', async () => {
