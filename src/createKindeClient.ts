@@ -222,12 +222,37 @@ const createKindeClient = async (
   };
 
   let inFlightTabCoordination: Promise<RefreshTokenResult> | null = null;
+  // Blocks new refresh/checkAuth work once logout starts. In-flight work is
+  // awaited in logout() so any cookie Set-Cookie lands before /logout clears it.
+  let logoutInProgress = false;
+  let sessionEpoch = 0;
+
+  const isSessionCurrent = (epochAtStart: number): boolean =>
+    !logoutInProgress && epochAtStart === sessionEpoch;
 
   const runTabSyncCoordination = async (
     operation: () => Promise<RefreshTokenResult>,
-    inProgressErrorMessage: string
+    inProgressErrorMessage: string,
+    epochAtStart: number
   ): Promise<RefreshTokenResult> => {
+    if (!isSessionCurrent(epochAtStart)) {
+      return {
+        success: false,
+        error: 'Logout in progress'
+      };
+    }
+
     const lock = await tabSync.tryWithRefreshLock(operation);
+
+    // Logout may have started while the refresh/checkAuth fetch was in flight.
+    // Do not re-apply tokens into memory; logout awaits this promise then clears
+    // storage and navigates to /logout (which clears _kbrte after any Set-Cookie).
+    if (!isSessionCurrent(epochAtStart)) {
+      return {
+        success: false,
+        error: 'Logout in progress'
+      };
+    }
 
     if (lock.ran && isSuccessResult(lock.value)) {
       await tabSync.applyTokensFromResult(lock.value);
@@ -245,6 +270,12 @@ const createKindeClient = async (
     if (waitForPeerTokens) {
       // Another tab holds the lock, or LS lock outcome was ambiguous and refresh failed
       const tokens = await tabSync.waitForTokenBroadcast();
+      if (!isSessionCurrent(epochAtStart)) {
+        return {
+          success: false,
+          error: 'Logout in progress'
+        };
+      }
       if (tokens) {
         await tabSync.applyTokens(tokens);
         return {
@@ -272,13 +303,22 @@ const createKindeClient = async (
     operation: () => Promise<RefreshTokenResult>,
     inProgressErrorMessage: string
   ): Promise<RefreshTokenResult> => {
+    if (logoutInProgress) {
+      return Promise.resolve({
+        success: false,
+        error: 'Logout in progress'
+      });
+    }
+
     if (inFlightTabCoordination) {
       return inFlightTabCoordination;
     }
 
+    const epochAtStart = sessionEpoch;
     const coordination = runTabSyncCoordination(
       operation,
-      inProgressErrorMessage
+      inProgressErrorMessage,
+      epochAtStart
     ).finally(() => {
       if (inFlightTabCoordination === coordination) {
         inFlightTabCoordination = null;
@@ -858,6 +898,22 @@ const createKindeClient = async (
     }
   };
 
+  const clearLocalAuthState = async (): Promise<void> => {
+    await Promise.all([
+      store.removeSessionItem(StorageKeys.idToken),
+      store.removeSessionItem(StorageKeys.accessToken),
+      store.removeSessionItem(StorageKeys.refreshToken),
+      localStorageAdapter.removeSessionItem(StorageKeys.refreshToken),
+      store.removeItems(
+        storageMap.refresh_token,
+        storageMap.access_token,
+        storageMap.id_token,
+        storageMap.user,
+        storageMap.token_bundle
+      )
+    ]);
+  };
+
   const logout = async (options?: string | LogoutOptions) => {
     try {
       const params = new URLSearchParams();
@@ -877,27 +933,29 @@ const createKindeClient = async (
         params.append('redirect', logout_uri || '');
       }
 
-      await Promise.all([
-        store.removeSessionItem(StorageKeys.idToken),
-        store.removeSessionItem(StorageKeys.accessToken),
-        store.removeSessionItem(StorageKeys.refreshToken),
-        localStorageAdapter.removeSessionItem(StorageKeys.refreshToken),
-        store.removeItems(
-          storageMap.refresh_token,
-          storageMap.access_token,
-          storageMap.id_token,
-          storageMap.user,
-          storageMap.token_bundle
-        )
-      ]);
+      // Stop new refreshes/checkAuth. Await any in-flight cookie refresh so its
+      // Set-Cookie cannot land after Kinde /logout has already cleared _kbrte.
+      logoutInProgress = true;
+      sessionEpoch += 1;
+      if (inFlightTabCoordination) {
+        try {
+          await inFlightTabCoordination;
+        } catch {
+          // Ignore refresh/checkAuth failures during logout.
+        }
+      }
 
+      await clearLocalAuthState();
       tabSync.broadcastSessionCleared();
 
       try {
         await navigateToKinde({
           url: `${domain}/logout?${params.toString()}`
         });
+        // Keep logoutInProgress true until the document unloads on redirect.
       } catch (error) {
+        // Navigation failed (e.g. popup blocked); allow refresh/checkAuth again.
+        logoutInProgress = false;
         on_error_callback?.({
           error: 'ERR_POPUP',
           errorDescription: (error as Error).message,
@@ -959,6 +1017,7 @@ const createKindeClient = async (
     localStorage.removeItem(storageMap.refresh_token);
   };
   const init = async () => {
+    console.log('PESICKA, isUseCookie?', isUseCookie);
     try {
       try {
         migrateLegacyRefreshTokenKey();
@@ -1077,12 +1136,18 @@ const createKindeClient = async (
 
   tabSync.setupListeners({
     onTokensUpdated: () => {
+      if (logoutInProgress) {
+        void clearLocalAuthState();
+        return;
+      }
       void hydrateUserFromIdToken();
     }
   });
   tabSync.setupVisibilitySync(() => {
+    if (logoutInProgress) return;
     void runCheckAuthWithTabSync()
       .then(async () => {
+        if (logoutInProgress) return;
         if (await isAuthenticated()) {
           await hydrateUserFromIdToken();
         } else {

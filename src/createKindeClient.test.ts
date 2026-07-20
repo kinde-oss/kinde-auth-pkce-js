@@ -42,7 +42,8 @@ import {
   isAuthenticated,
   storageSettings,
   StorageKeys,
-  RefreshType
+  RefreshType,
+  navigateToKinde
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
@@ -54,6 +55,7 @@ const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
 const mockGetUserProfile = getUserProfile as jest.Mock;
 const mockRefreshToken = refreshToken as jest.Mock;
 const mockIsAuthenticated = isAuthenticated as jest.Mock;
+const mockNavigateToKinde = navigateToKinde as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 
 type StorageMock = {
@@ -1000,5 +1002,173 @@ describe('getAccessToken refresh behaviour', () => {
     expect(token).toBeUndefined();
     expect(store.getSessionItem(StorageKeys.refreshToken)).toBe('rt-keep');
     expect(store.getSessionItem(StorageKeys.accessToken)).toBe(expiredJwt);
+  });
+});
+
+describe('logout awaits in-flight refresh', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockCheckAuth.mockResolvedValue({success: false});
+    mockRefreshToken.mockReset();
+    mockNavigateToKinde.mockClear();
+    mockNavigateToKinde.mockImplementation((opts: {url: string}) => {
+      (global as typeof globalThis & {location: {href: string}}).location.href =
+        opts.url;
+    });
+    mockIsJWTActive.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    });
+    storageSettings.onRefreshHandler = undefined;
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  it('awaits an in-flight cookie refresh before navigating to /logout', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    const idJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 3600});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(StorageKeys.idToken, idJwt);
+
+    let resolveRefresh!: (value: {
+      success: true;
+      [StorageKeys.accessToken]: string;
+      [StorageKeys.idToken]: string;
+    }) => void;
+    mockRefreshToken.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    const accessPromise = client.getAccessToken();
+    // Allow the refresh coordination to start and take the in-flight slot.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const logoutPromise = client.logout();
+    await Promise.resolve();
+
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+
+    resolveRefresh({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: idJwt
+    });
+
+    await accessPromise;
+    await logoutPromise;
+
+    expect(mockNavigateToKinde).toHaveBeenCalledTimes(1);
+    expect(mockNavigateToKinde).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expect.stringContaining('https://auth.example.com/logout?')
+      })
+    );
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
+    expect(store.getSessionItem(StorageKeys.idToken)).toBeNull();
+    expect(store.getSessionItem(StorageKeys.refreshToken)).toBeNull();
+  });
+
+  it('does not apply in-flight refresh tokens after logout has started', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    const idJwt = makeJwt({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      sub: 'user-1',
+      given_name: 'Ada',
+      family_name: 'Lovelace',
+      email: 'ada@example.com'
+    });
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(StorageKeys.idToken, idJwt);
+
+    let resolveRefresh!: (value: {
+      success: true;
+      [StorageKeys.accessToken]: string;
+      [StorageKeys.idToken]: string;
+    }) => void;
+    mockRefreshToken.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      })
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    const accessPromise = client.getAccessToken();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const logoutPromise = client.logout();
+    await Promise.resolve();
+
+    resolveRefresh({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: idJwt
+    });
+
+    const token = await accessPromise;
+    await logoutPromise;
+
+    // Refresh result discarded after logout started; local state stays cleared.
+    expect(token).toBeUndefined();
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
+    expect(store.getItem(storageMap.user)).toBeNull();
+  });
+
+  it('navigates to logout when no refresh is in flight', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(true);
+    const activeJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 600});
+    store.setSessionItem(StorageKeys.accessToken, activeJwt);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    await client.logout('http://app.example.com/logged-out');
+
+    expect(mockNavigateToKinde).toHaveBeenCalledWith({
+      url: 'https://auth.example.com/logout?redirect=http%3A%2F%2Fapp.example.com%2Flogged-out'
+    });
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
   });
 });
