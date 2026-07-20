@@ -1017,7 +1017,6 @@ const createKindeClient = async (
     localStorage.removeItem(storageMap.refresh_token);
   };
   const init = async () => {
-    console.log('PESICKA, isUseCookie?', isUseCookie);
     try {
       try {
         migrateLegacyRefreshTokenKey();
