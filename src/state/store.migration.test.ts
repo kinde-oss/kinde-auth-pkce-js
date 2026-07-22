@@ -1,6 +1,7 @@
 import {StorageKeys} from '@kinde/js-utils';
 import {store} from './store';
 import {storageMap} from '../constants';
+import {createMockJWT} from '../testData/createMockJWT';
 
 const MAPPED_STORAGE_KEYS: Array<{
   storageMapKey: string;
@@ -23,8 +24,7 @@ const makeDecodedJwt = () => ({
   feature_flags: {theme: {t: 's', v: 'pink'}}
 });
 
-const RAW_JWT =
-  'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJrcDp1c2VyMTIzIn0.mock-signature';
+const RAW_JWT = createMockJWT({sub: 'kp:user123'});
 
 describe('Store migration gaps', () => {
   beforeEach(() => {
