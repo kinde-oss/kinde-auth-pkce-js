@@ -47,7 +47,8 @@ import {
 } from './kindeUtils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
-import {isJWTActive} from './utils/index';
+import {isJWTActive, isTokenValid} from './utils/index';
+import {isTokenValid as actualIsTokenValid} from './utils/isTokenValid/isTokenValid';
 
 const mockSetActiveStorage = setActiveStorage as jest.Mock;
 const mockCheckAuth = checkAuth as jest.Mock;
@@ -57,6 +58,9 @@ const mockRefreshToken = refreshToken as jest.Mock;
 const mockIsAuthenticated = isAuthenticated as jest.Mock;
 const mockNavigateToKinde = navigateToKinde as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
+const mockIsTokenValid = isTokenValid as jest.MockedFunction<
+  typeof isTokenValid
+>;
 
 type StorageMock = {
   getItem: jest.Mock;
@@ -646,8 +650,7 @@ describe('visibility sync hydration', () => {
     const visibilityHandler = (
       document.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
-      | (() => void)
-      | undefined;
+      (() => void) | undefined;
 
     mockCheckAuth.mockClear();
     visibilityHandler?.();
@@ -686,8 +689,7 @@ describe('visibility sync hydration', () => {
     const visibilityHandler = (
       document.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
-      | (() => void)
-      | undefined;
+      (() => void) | undefined;
 
     mockCheckAuth.mockClear();
     visibilityHandler?.();
@@ -1170,5 +1172,151 @@ describe('logout awaits in-flight refresh', () => {
       url: 'https://auth.example.com/logout?redirect=http%3A%2F%2Fapp.example.com%2Flogged-out'
     });
     expect(store.getSessionItem(StorageKeys.accessToken)).toBeNull();
+  });
+});
+
+describe('createKindeClient setStore audience validation', () => {
+  const domain = 'https://example.kinde.com';
+  const redirectUri = 'http://localhost:3000/';
+  const clientId = 'spa@live';
+  const audience = 'stake:prod-api';
+
+  const makeValidJwt = (
+    payload: Record<string, unknown>,
+    header: Record<string, unknown> = {alg: 'RS256', typ: 'JWT'}
+  ) => `${b64url(header)}.${b64url(payload)}.x`;
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockIsJWTActive.mockReturnValue(false);
+    mockIsTokenValid.mockImplementation(actualIsTokenValid);
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+  });
+
+  afterEach(() => {
+    mockIsTokenValid.mockImplementation(() => true);
+    mockIsJWTActive.mockReset();
+    jest.clearAllMocks();
+  });
+
+  it('accepts scalar string aud claims via getToken refresh path', async () => {
+    setWindowLocation();
+    const ls = global.localStorage as unknown as StorageMock;
+    ls.getItem.mockImplementation((key: string) =>
+      key === storageMap.refresh_token ? 'rt-in-localstorage' : null
+    );
+
+    const now = Math.floor(Date.now() / 1000);
+    const freshAccess = makeValidJwt({
+      iss: domain,
+      azp: clientId,
+      aud: audience,
+      exp: now + 3600
+    });
+    const freshId = makeValidJwt({
+      iss: domain,
+      azp: clientId,
+      aud: clientId,
+      exp: now + 3600,
+      sub: 'user-1'
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        access_token: freshAccess,
+        id_token: freshId,
+        refresh_token: 'new-refresh-token',
+        expires_in: 3600,
+        scope: 'openid',
+        token_type: 'Bearer'
+      })
+    });
+
+    const past = now - 120;
+    store.setItem(storageMap.token_bundle, {
+      access_token: 'old',
+      id_token: 'old',
+      refresh_token: 'old-rt',
+      expires_in: 3600,
+      scope: 'openid',
+      token_type: 'Bearer'
+    });
+    store.setItem(storageMap.access_token, {exp: past});
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      audience
+    });
+
+    await expect(client.getToken()).resolves.toBe(freshAccess);
+  });
+
+  it('accepts array aud claims via getToken refresh path', async () => {
+    setWindowLocation();
+    const ls = global.localStorage as unknown as StorageMock;
+    ls.getItem.mockImplementation((key: string) =>
+      key === storageMap.refresh_token ? 'rt-in-localstorage' : null
+    );
+
+    const now = Math.floor(Date.now() / 1000);
+    const freshAccess = makeValidJwt({
+      iss: domain,
+      azp: clientId,
+      aud: [audience],
+      exp: now + 3600
+    });
+    const freshId = makeValidJwt({
+      iss: domain,
+      azp: clientId,
+      aud: [clientId],
+      exp: now + 3600,
+      sub: 'user-1'
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        access_token: freshAccess,
+        id_token: freshId,
+        refresh_token: 'new-refresh-token',
+        expires_in: 3600,
+        scope: 'openid',
+        token_type: 'Bearer'
+      })
+    });
+
+    const past = now - 120;
+    store.setItem(storageMap.token_bundle, {
+      access_token: 'old',
+      id_token: 'old',
+      refresh_token: 'old-rt',
+      expires_in: 3600,
+      scope: 'openid',
+      token_type: 'Bearer'
+    });
+    store.setItem(storageMap.access_token, {exp: past});
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      audience
+    });
+
+    await expect(client.getToken()).resolves.toBe(freshAccess);
   });
 });

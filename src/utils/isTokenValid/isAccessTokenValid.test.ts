@@ -89,16 +89,28 @@ describe('isAccessTokenValid', () => {
     }).toThrow(`azp claim mismatch. Expected: "1234567890", Received: "mate"`);
   });
 
-  test('Throw error if aud is not an array', () => {
-    expect(() => {
+  test('accepts scalar string aud claim', () => {
+    expect(
       isTokenValid(
         {
           header,
-          payload: {...accessTokenStub(), aud: 'mate'}
+          payload: {...accessTokenStub(), aud: 'stake:prod-api'}
         },
         config
-      );
-    }).toThrow(`(aud) claim must be an array`);
+      )
+    ).toBe(true);
+  });
+
+  test('accepts array aud claim', () => {
+    expect(
+      isTokenValid(
+        {
+          header,
+          payload: {...accessTokenStub(), aud: ['stake:prod-api']}
+        },
+        config
+      )
+    ).toBe(true);
   });
 
   test('Still pass if aud is undefined', () => {
@@ -111,6 +123,20 @@ describe('isAccessTokenValid', () => {
         {...config, aud: undefined}
       )
     ).toBe(true);
+  });
+
+  test('Throw error with incorrect scalar aud', () => {
+    expect(() => {
+      isTokenValid(
+        {
+          header,
+          payload: {...accessTokenStub(), aud: 'mate'}
+        },
+        config
+      );
+    }).toThrow(
+      `(aud) claim mismatch. Expected: "stake:prod-api", Received: "mate"`
+    );
   });
 
   test('Throw error with incorrect aud', () => {
