@@ -89,7 +89,19 @@ describe('isIDToken valid', () => {
     }).toThrow(`azp claim mismatch. Expected: "123456789", Received: "mate"`);
   });
 
-  test('Throw error if aud is not an array', () => {
+  test('accepts scalar string aud claim when it matches configured audience', () => {
+    expect(
+      isTokenValid(
+        {
+          header,
+          payload: {...idTokenStub(), aud: '123456789'}
+        },
+        {...config, aud: '123456789'}
+      )
+    ).toBe(true);
+  });
+
+  test('Throw error with incorrect scalar aud', () => {
     expect(() => {
       isTokenValid(
         {
@@ -98,7 +110,9 @@ describe('isIDToken valid', () => {
         },
         config
       );
-    }).toThrow(`(aud) claim must be an array`);
+    }).toThrow(
+      `(aud) claim mismatch. Expected: "https://account.acme.com 123456789", Received: "mate"`
+    );
   });
 
   test('Throw error with incorrect aud', () => {

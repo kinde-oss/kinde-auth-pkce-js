@@ -49,10 +49,12 @@ const isTokenValid = (token: DecodedToken, config: TokenConfig) => {
   }
 
   if (config.aud) {
-    const audience = token.payload.aud;
-    if (!Array.isArray(audience)) {
-      throw new Error('(aud) claim must be an array');
-    }
+    const audienceClaim = token.payload.aud;
+    const audience = Array.isArray(audienceClaim)
+      ? audienceClaim
+      : typeof audienceClaim === 'string'
+        ? [audienceClaim]
+        : [];
 
     const configAud = config.aud.split(' ');
 
