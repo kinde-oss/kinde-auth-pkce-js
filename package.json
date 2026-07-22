@@ -100,7 +100,7 @@
   },
   "private": false,
   "dependencies": {
-    "@kinde/js-utils": "^0.30.0",
+    "@kinde/js-utils": "^0.31.0",
     "jwt-decode": "^4.0.0"
   }
 }
