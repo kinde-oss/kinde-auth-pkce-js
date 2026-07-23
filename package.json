@@ -28,8 +28,8 @@
     }
   },
   "scripts": {
-    "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
-    "rollup:types": "rollup --config rollup.types.config.ts --configPlugin @rollup/plugin-typescript",
+    "rollup": "rollup --config rollup.config.ts --configPlugin \"@rollup/plugin-typescript={tsconfig:'./tsconfig.rollup.json'}\"",
+    "rollup:types": "rollup --config rollup.types.config.ts --configPlugin \"@rollup/plugin-typescript={tsconfig:'./tsconfig.rollup.json'}\"",
     "build": "genversion --es6 src/utils/version.ts && npm run rollup && npm run rollup:types",
     "test": "jest",
     "watch": "npm run rollup -- --watch",

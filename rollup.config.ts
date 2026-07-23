@@ -28,10 +28,16 @@ function stubExpoSecureStore() {
   ].join('\n');
   const stubExpr =
     'Promise.resolve({ default: { setItemAsync: async () => {}, getItemAsync: async () => null, deleteItemAsync: async () => {} } })';
+  // Matches dynamic imports even when webpackIgnore / similar comments sit
+  // between `import(` and the module specifier (as in js-utils >= 0.31).
+  const dynamicImportRe =
+    /await\s+import\s*\(\s*[\s\S]*?["']expo-secure-store["']\s*\)/g;
+  const replaceExpoImports = (code: string) =>
+    code.replace(dynamicImportRe, 'await ' + stubExpr);
   return {
     name: 'stub-expo-secure-store',
     order: 'pre',
-    resolveId(id) {
+    resolveId(id: string) {
       if (
         id === 'expo-secure-store' ||
         (typeof id === 'string' && id.includes('expo-secure-store'))
@@ -40,17 +46,23 @@ function stubExpoSecureStore() {
       }
       return null;
     },
-    load(id) {
+    load(id: string) {
       if (id !== EXPO_STUB_ID) return null;
       return stubCode;
     },
-    transform(code, id) {
-      if (!id.includes('expoSecureStore') && !id.includes('expo-secure-store'))
-        return null;
-      const newCode = code.replace(
-        /await\s+import\s*\(\s*[\s\S]*?["']expo-secure-store["']\s*\)/g,
-        'await ' + stubExpr
-      );
+    transform(code: string) {
+      // Match any module whose *code* contains the import — not just files
+      // whose path includes expoSecureStore. js-utils >= 0.31 inlines
+      // ExpoSecureStore into js-utils.js, so a path filter misses it.
+      if (!code.includes('expo-secure-store')) return null;
+      const newCode = replaceExpoImports(code);
+      return newCode !== code ? {code: newCode, map: null} : null;
+    },
+    renderChunk(code: string) {
+      // Final safety net so published ESM/UMD never leave an unresolved
+      // expo-secure-store import for Vite / Rolldown to fail on.
+      if (!code.includes('expo-secure-store')) return null;
+      const newCode = replaceExpoImports(code);
       return newCode !== code ? {code: newCode, map: null} : null;
     }
   };
@@ -94,22 +106,23 @@ export default defineConfig([
         name: 'createKindeClient',
         file: pkg.main,
         format: 'umd',
+        exports: 'named',
         inlineDynamicImports: true,
         plugins: [terser()]
       },
       {
         file: pkg.module,
         format: 'es',
+        exports: 'named',
         inlineDynamicImports: true
       }
     ],
-    external: ['expo-secure-store'],
     plugins: [
       stubExpoSecureStore(),
       resolve(),
       typescript({
-        declarationDir: 'dist/types',
-        rootDir: 'src'
+        tsconfig: './tsconfig.json',
+        declarationDir: 'dist/types'
       }),
       writeUtilsReexports()
     ]

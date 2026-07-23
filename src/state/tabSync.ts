@@ -218,8 +218,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
   };
 
   type RefreshLockResult<T> =
-    | {ran: true; value: T; usedAmbiguousFallback: boolean}
-    | {ran: false};
+    {ran: true; value: T; usedAmbiguousFallback: boolean} | {ran: false};
 
   let sameTabLockAttempt: Promise<RefreshLockResult<unknown>> | null = null;
 
