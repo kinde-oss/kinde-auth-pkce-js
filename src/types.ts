@@ -100,12 +100,7 @@ export type OrgOptions = {
 };
 
 export type AuthUrlParamValue =
-  | string
-  | number
-  | boolean
-  | bigint
-  | null
-  | undefined;
+  string | number | boolean | bigint | null | undefined;
 
 export type AuthUrlParams = Record<string, AuthUrlParamValue>;
 

@@ -2,11 +2,12 @@
   "compilerOptions": {
     "outDir": "./dist",
     "declarationDir": "./dist/types",
+    "rootDir": "./src",
     "target": "esnext",
     "module": "esnext",
     "types": ["node", "jest"],
     "lib": ["dom", "dom.iterable", "esnext"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,

@@ -42,7 +42,6 @@ import {
   Scopes,
   setActiveStorage,
   StorageKeys,
-  isAuthenticated as isAuthenticatedFromJsUtils,
   getUserProfile as getUserProfileFromJsUtils,
   LocalStorage,
   checkAuth,
@@ -543,8 +542,7 @@ const createKindeClient = async (
     const value = store.getItem(key);
     if (typeof value === 'string') return value;
     const bundle = store.getItem(storageMap.token_bundle) as
-      | KindeStateTokenBundle
-      | undefined;
+      KindeStateTokenBundle | undefined;
     return key === storageMap.access_token
       ? bundle?.access_token
       : bundle?.id_token;
@@ -614,11 +612,10 @@ const createKindeClient = async (
   };
 
   const isAuthenticated = async () => {
-    return isAuthenticatedFromJsUtils({
-      useRefreshToken: true,
-      domain,
-      clientId: client_id
-    });
+    // Use the same cookie-vs-storage refresh path as getAccessToken.
+    // js-utils isAuthenticated always defaults refreshType to refreshToken,
+    // which fails on custom domains where the refresh token lives in _kbrte.
+    return Boolean(await getAccessToken());
   };
 
   const getPermissions = (): KindePermissions => {

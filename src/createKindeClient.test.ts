@@ -22,7 +22,6 @@ jest.mock('./kindeUtils', () => {
     setInsecureStorage: jest.fn(),
     checkAuth: jest.fn().mockResolvedValue({success: false}),
     exchangeAuthCode: jest.fn().mockResolvedValue({success: true}),
-    isAuthenticated: jest.fn().mockResolvedValue(false),
     getUserProfile: jest.fn().mockResolvedValue(undefined),
     refreshToken: jest.fn().mockResolvedValue({success: false}),
     navigateToKinde: jest.fn().mockImplementation((opts: {url: string}) => {
@@ -39,7 +38,6 @@ import {
   exchangeAuthCode,
   getUserProfile,
   refreshToken,
-  isAuthenticated,
   storageSettings,
   StorageKeys,
   RefreshType,
@@ -55,7 +53,6 @@ const mockCheckAuth = checkAuth as jest.Mock;
 const mockExchangeAuthCode = exchangeAuthCode as jest.Mock;
 const mockGetUserProfile = getUserProfile as jest.Mock;
 const mockRefreshToken = refreshToken as jest.Mock;
-const mockIsAuthenticated = isAuthenticated as jest.Mock;
 const mockNavigateToKinde = navigateToKinde as jest.Mock;
 const mockIsJWTActive = isJWTActive as jest.MockedFunction<typeof isJWTActive>;
 const mockIsTokenValid = isTokenValid as jest.MockedFunction<
@@ -398,8 +395,10 @@ describe('on_session_restore_callback semantics', () => {
     mockCheckAuth.mockClear();
     mockExchangeAuthCode.mockClear();
     mockGetUserProfile.mockReset();
-    mockIsAuthenticated.mockReset();
-    mockIsAuthenticated.mockResolvedValue(false);
+    mockRefreshToken.mockReset();
+    mockRefreshToken.mockResolvedValue({success: false});
+    mockIsJWTActive.mockReset();
+    mockIsJWTActive.mockReturnValue(false);
     store.reset();
     Object.defineProperty(global, 'sessionStorage', {
       value: createStorageMock(),
@@ -421,7 +420,9 @@ describe('on_session_restore_callback semantics', () => {
 
   it('fires session restore callback on non-redirect authenticated load', async () => {
     setWindowLocation();
-    mockIsAuthenticated.mockResolvedValue(true);
+    const activeJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 3600});
+    store.setSessionItem(StorageKeys.accessToken, activeJwt);
+    mockIsJWTActive.mockReturnValue(true);
     mockGetUserProfile.mockResolvedValue({
       id: 'kp:user-1',
       givenName: 'Test',
@@ -449,7 +450,9 @@ describe('on_session_restore_callback semantics', () => {
 
   it('populates getUser on session restore without callback when id token is present', async () => {
     setWindowLocation();
-    mockIsAuthenticated.mockResolvedValue(true);
+    const activeJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 3600});
+    store.setSessionItem(StorageKeys.accessToken, activeJwt);
+    mockIsJWTActive.mockReturnValue(true);
     mockGetUserProfile.mockResolvedValue(undefined);
     store.setSessionItem(
       StorageKeys.idToken,
@@ -477,7 +480,6 @@ describe('on_session_restore_callback semantics', () => {
 
   it('does not fetch user profile when session is not authenticated', async () => {
     setWindowLocation();
-    mockIsAuthenticated.mockResolvedValue(false);
 
     await createKindeClient({
       domain: 'https://example.kinde.com',
@@ -489,7 +491,6 @@ describe('on_session_restore_callback semantics', () => {
 
   it('does not hydrate user from stale id token when session is not authenticated', async () => {
     setWindowLocation();
-    mockIsAuthenticated.mockResolvedValue(false);
     store.setSessionItem(
       StorageKeys.idToken,
       makeJwt({
@@ -510,7 +511,6 @@ describe('on_session_restore_callback semantics', () => {
 
   it('clears previously stored user when session is not authenticated on init', async () => {
     setWindowLocation();
-    mockIsAuthenticated.mockResolvedValue(false);
     store.setItem(storageMap.user, {
       id: 'kp:stale-user',
       email: 'stale@x.com',
@@ -594,8 +594,10 @@ describe('visibility sync hydration', () => {
     mockSetActiveStorage.mockReset();
     mockCheckAuth.mockClear();
     mockCheckAuth.mockResolvedValue({success: false});
-    mockIsAuthenticated.mockReset();
-    mockIsAuthenticated.mockResolvedValue(false);
+    mockRefreshToken.mockReset();
+    mockRefreshToken.mockResolvedValue({success: false});
+    mockIsJWTActive.mockReset();
+    mockIsJWTActive.mockReturnValue(false);
     store.reset();
     setupVisibilityBrowserMocks();
     Object.defineProperty(global, 'sessionStorage', {
@@ -684,7 +686,7 @@ describe('visibility sync hydration', () => {
       [StorageKeys.idToken]: idToken,
       [StorageKeys.refreshToken]: 'refresh-token'
     });
-    mockIsAuthenticated.mockResolvedValue(true);
+    mockIsJWTActive.mockReturnValue(true);
 
     const visibilityHandler = (
       document.addEventListener as jest.Mock
@@ -951,6 +953,13 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('deduplicates concurrent getAccessToken refresh attempts in the same tab', async () => {
     setWindowLocation();
+    mockRefreshToken.mockResolvedValue({success: false});
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -966,11 +975,6 @@ describe('getAccessToken refresh behaviour', () => {
       [StorageKeys.idToken]: makeJwt({
         exp: Math.floor(Date.now() / 1000) + 3600
       })
-    });
-
-    const client = await createKindeClient({
-      domain,
-      redirect_uri: 'http://localhost:3000/'
     });
 
     const [first, second] = await Promise.all([
@@ -1004,6 +1008,129 @@ describe('getAccessToken refresh behaviour', () => {
     expect(token).toBeUndefined();
     expect(store.getSessionItem(StorageKeys.refreshToken)).toBe('rt-keep');
     expect(store.getSessionItem(StorageKeys.accessToken)).toBe(expiredJwt);
+  });
+});
+
+describe('isAuthenticated refresh behaviour', () => {
+  const domain = 'https://example.kinde.com';
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockCheckAuth.mockResolvedValue({success: false});
+    mockRefreshToken.mockReset();
+    mockIsJWTActive.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  it('returns true when the stored access token is active', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(true);
+    store.setSessionItem(
+      StorageKeys.accessToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    await expect(client.isAuthenticated()).resolves.toBe(true);
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('uses refreshToken refresh on localhost when the access token is expired', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(false);
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(
+      StorageKeys.accessToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) - 60})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    await expect(client.isAuthenticated()).resolves.toBe(true);
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.refreshToken})
+    );
+  });
+
+  it('uses cookie refresh on a production custom domain when the access token is expired', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(
+      StorageKeys.accessToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) - 60})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    await expect(client.isAuthenticated()).resolves.toBe(true);
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.cookie})
+    );
+  });
+
+  it('returns false when cookie refresh fails', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+    store.setSessionItem(
+      StorageKeys.accessToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) - 60})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: false,
+      error: 'No refresh token found'
+    });
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    await expect(client.isAuthenticated()).resolves.toBe(false);
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.cookie})
+    );
   });
 });
 
@@ -1045,6 +1172,13 @@ describe('logout awaits in-flight refresh', () => {
 
   it('awaits an in-flight cookie refresh before navigating to /logout', async () => {
     setWindowLocation('', 'app.example.com');
+    mockRefreshToken.mockResolvedValue({success: false});
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -1062,11 +1196,6 @@ describe('logout awaits in-flight refresh', () => {
         resolveRefresh = resolve;
       })
     );
-
-    const client = await createKindeClient({
-      domain: 'https://auth.example.com',
-      redirect_uri: 'http://app.example.com/'
-    });
 
     const accessPromise = client.getAccessToken();
     // Allow the refresh coordination to start and take the in-flight slot.
@@ -1100,6 +1229,13 @@ describe('logout awaits in-flight refresh', () => {
 
   it('does not apply in-flight refresh tokens after logout has started', async () => {
     setWindowLocation('', 'app.example.com');
+    mockRefreshToken.mockResolvedValue({success: false});
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -1123,11 +1259,6 @@ describe('logout awaits in-flight refresh', () => {
         resolveRefresh = resolve;
       })
     );
-
-    const client = await createKindeClient({
-      domain: 'https://auth.example.com',
-      redirect_uri: 'http://app.example.com/'
-    });
 
     const accessPromise = client.getAccessToken();
     await Promise.resolve();
