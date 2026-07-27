@@ -118,6 +118,22 @@ const setWindowLocation = (search = '', hostname = 'localhost') => {
   return location;
 };
 
+const LOCAL_REFRESH_TOKEN_KEY = 'kinde_refreshToken0';
+
+const seedLocalRefreshToken = (token = 'refresh-token') => {
+  (global.localStorage.getItem as jest.Mock).mockImplementation(
+    (key: string) => (key === LOCAL_REFRESH_TOKEN_KEY ? token : null)
+  );
+};
+
+const seedCookieRefreshToken = (token = 'cookie-refresh-token') => {
+  Object.defineProperty(document, 'cookie', {
+    value: `_kbrte=${token}`,
+    writable: true,
+    configurable: true
+  });
+};
+
 describe('createKindeClient invitation flow', () => {
   beforeEach(() => {
     mockSetActiveStorage.mockReset();
@@ -891,6 +907,7 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('refreshes and returns a new token when the stored access token is expired', async () => {
     setWindowLocation();
+    seedLocalRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -922,6 +939,7 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('uses cookie refresh on a production custom domain', async () => {
     setWindowLocation('', 'app.example.com');
+    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -953,6 +971,7 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('deduplicates concurrent getAccessToken refresh attempts in the same tab', async () => {
     setWindowLocation();
+    seedLocalRefreshToken();
     mockRefreshToken.mockResolvedValue({success: false});
 
     const client = await createKindeClient({
@@ -989,6 +1008,7 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('returns undefined without clearing storage when refresh fails', async () => {
     setWindowLocation();
+    seedLocalRefreshToken('rt-keep');
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     store.setSessionItem(StorageKeys.accessToken, expiredJwt);
@@ -1008,6 +1028,29 @@ describe('getAccessToken refresh behaviour', () => {
     expect(token).toBeUndefined();
     expect(store.getSessionItem(StorageKeys.refreshToken)).toBe('rt-keep');
     expect(store.getSessionItem(StorageKeys.accessToken)).toBe(expiredJwt);
+  });
+
+  it('skips refresh when no refresh credential is available', async () => {
+    setWindowLocation();
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    Object.defineProperty(document, 'cookie', {
+      value: '',
+      writable: true,
+      configurable: true
+    });
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+    mockRefreshToken.mockClear();
+
+    const token = await client.getAccessToken();
+
+    expect(token).toBeUndefined();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
   });
 });
 
@@ -1058,6 +1101,7 @@ describe('isAuthenticated refresh behaviour', () => {
 
   it('uses refreshToken refresh on localhost when the access token is expired', async () => {
     setWindowLocation();
+    seedLocalRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
     store.setSessionItem(
@@ -1085,6 +1129,7 @@ describe('isAuthenticated refresh behaviour', () => {
 
   it('uses cookie refresh on a production custom domain when the access token is expired', async () => {
     setWindowLocation('', 'app.example.com');
+    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
     store.setSessionItem(
@@ -1112,6 +1157,7 @@ describe('isAuthenticated refresh behaviour', () => {
 
   it('returns false when cookie refresh fails', async () => {
     setWindowLocation('', 'app.example.com');
+    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     store.setSessionItem(
       StorageKeys.accessToken,
@@ -1172,6 +1218,7 @@ describe('logout awaits in-flight refresh', () => {
 
   it('awaits an in-flight cookie refresh before navigating to /logout', async () => {
     setWindowLocation('', 'app.example.com');
+    seedCookieRefreshToken();
     mockRefreshToken.mockResolvedValue({success: false});
 
     const client = await createKindeClient({
@@ -1229,6 +1276,7 @@ describe('logout awaits in-flight refresh', () => {
 
   it('does not apply in-flight refresh tokens after logout has started', async () => {
     setWindowLocation('', 'app.example.com');
+    seedCookieRefreshToken();
     mockRefreshToken.mockResolvedValue({success: false});
 
     const client = await createKindeClient({

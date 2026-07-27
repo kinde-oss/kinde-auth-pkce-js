@@ -578,6 +578,20 @@ const createKindeClient = async (
       return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
     }
 
+    // Match useRefreshToken: only attempt refresh when a credential exists.
+    const localStorageRefreshToken = isUseLocalStorage
+      ? (localStorageAdapter.getSessionItem(
+          StorageKeys.refreshToken
+        ) as string) ||
+        (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
+    const hasRefreshCredential =
+      Boolean(localStorageRefreshToken) ||
+      (isUseCookie && Boolean(hasCookie('_kbrte')));
+    if (!hasRefreshCredential) {
+      return undefined;
+    }
+
     let result: RefreshTokenResult;
     try {
       result = await runRefreshWithTabSync(
