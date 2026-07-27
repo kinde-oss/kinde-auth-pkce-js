@@ -126,14 +126,6 @@ const seedLocalRefreshToken = (token = 'refresh-token') => {
   );
 };
 
-const seedCookieRefreshToken = (token = 'cookie-refresh-token') => {
-  Object.defineProperty(document, 'cookie', {
-    value: `_kbrte=${token}`,
-    writable: true,
-    configurable: true
-  });
-};
-
 describe('createKindeClient invitation flow', () => {
   beforeEach(() => {
     mockSetActiveStorage.mockReset();
@@ -939,7 +931,6 @@ describe('getAccessToken refresh behaviour', () => {
 
   it('uses cookie refresh on a production custom domain', async () => {
     setWindowLocation('', 'app.example.com');
-    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
@@ -1035,15 +1026,62 @@ describe('getAccessToken refresh behaviour', () => {
     mockIsJWTActive.mockReturnValue(false);
     const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+
+    const client = await createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+    mockRefreshToken.mockClear();
+
+    const token = await client.getAccessToken();
+
+    expect(token).toBeUndefined();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('uses cookie refresh from a session marker without reading document.cookie', async () => {
+    setWindowLocation('', 'app.example.com');
     Object.defineProperty(document, 'cookie', {
       value: '',
       writable: true,
       configurable: true
     });
+    mockIsJWTActive.mockReturnValue(false);
+    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
+    const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
+    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
+    );
+    mockRefreshToken.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: freshJwt,
+      [StorageKeys.idToken]: makeJwt({
+        exp: Math.floor(Date.now() / 1000) + 3600
+      })
+    });
 
     const client = await createKindeClient({
-      domain,
-      redirect_uri: 'http://localhost:3000/'
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    const token = await client.getAccessToken();
+
+    expect(mockRefreshToken).toHaveBeenCalledWith(
+      expect.objectContaining({refreshType: RefreshType.cookie})
+    );
+    expect(token).toBe(freshJwt);
+  });
+
+  it('skips cookie refresh when no client-readable session marker exists', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockIsJWTActive.mockReturnValue(false);
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
     });
     mockRefreshToken.mockClear();
 
@@ -1129,7 +1167,6 @@ describe('isAuthenticated refresh behaviour', () => {
 
   it('uses cookie refresh on a production custom domain when the access token is expired', async () => {
     setWindowLocation('', 'app.example.com');
-    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
     store.setSessionItem(
@@ -1157,7 +1194,6 @@ describe('isAuthenticated refresh behaviour', () => {
 
   it('returns false when cookie refresh fails', async () => {
     setWindowLocation('', 'app.example.com');
-    seedCookieRefreshToken();
     mockIsJWTActive.mockReturnValue(false);
     store.setSessionItem(
       StorageKeys.accessToken,
@@ -1218,7 +1254,6 @@ describe('logout awaits in-flight refresh', () => {
 
   it('awaits an in-flight cookie refresh before navigating to /logout', async () => {
     setWindowLocation('', 'app.example.com');
-    seedCookieRefreshToken();
     mockRefreshToken.mockResolvedValue({success: false});
 
     const client = await createKindeClient({
@@ -1276,7 +1311,6 @@ describe('logout awaits in-flight refresh', () => {
 
   it('does not apply in-flight refresh tokens after logout has started', async () => {
     setWindowLocation('', 'app.example.com');
-    seedCookieRefreshToken();
     mockRefreshToken.mockResolvedValue({success: false});
 
     const client = await createKindeClient({

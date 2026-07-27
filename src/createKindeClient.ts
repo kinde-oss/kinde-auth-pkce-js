@@ -578,16 +578,22 @@ const createKindeClient = async (
       return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
     }
 
-    // Match useRefreshToken: only attempt refresh when a credential exists.
+    // Only attempt refresh when a credential / session signal exists.
+    // Cookie refresh uses HttpOnly `_kbrte`, which document.cookie cannot see —
+    // an existing client-readable token in session storage is the session marker.
     const localStorageRefreshToken = isUseLocalStorage
       ? (localStorageAdapter.getSessionItem(
           StorageKeys.refreshToken
         ) as string) ||
         (localStorage.getItem(storageMap.refresh_token) as string)
       : (store.getItem(storageMap.refresh_token) as string);
+    const hasSessionMarker = Boolean(
+      tokenToReturn ||
+      (await store.getSessionItem(StorageKeys.idToken)) ||
+      readLegacyRawToken(storageMap.id_token)
+    );
     const hasRefreshCredential =
-      Boolean(localStorageRefreshToken) ||
-      (isUseCookie && Boolean(hasCookie('_kbrte')));
+      Boolean(localStorageRefreshToken) || (isUseCookie && hasSessionMarker);
     if (!hasRefreshCredential) {
       return undefined;
     }
