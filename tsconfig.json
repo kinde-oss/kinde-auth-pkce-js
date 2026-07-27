@@ -14,5 +14,5 @@
     "declaration": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "rollup.config.ts", "rollup.types.config.ts"]
+  "exclude": ["node_modules"]
 }

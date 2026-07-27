@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import {createRequire} from 'node:module';
 import {defineConfig} from 'rollup';
 import del from 'rollup-plugin-delete';
