@@ -578,22 +578,17 @@ const createKindeClient = async (
       return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
     }
 
-    // Only attempt refresh when a credential / session signal exists.
-    // Cookie refresh uses HttpOnly `_kbrte`, which document.cookie cannot see —
-    // an existing client-readable token in session storage is the session marker.
+    // Cookie refresh uses HttpOnly `_kbrte`, which JavaScript cannot inspect,
+    // so cookie mode must attempt refresh and let the server validate it.
+    // Other modes can skip refresh when no readable credential exists.
     const localStorageRefreshToken = isUseLocalStorage
       ? (localStorageAdapter.getSessionItem(
           StorageKeys.refreshToken
         ) as string) ||
         (localStorage.getItem(storageMap.refresh_token) as string)
       : (store.getItem(storageMap.refresh_token) as string);
-    const hasSessionMarker = Boolean(
-      tokenToReturn ||
-      (await store.getSessionItem(StorageKeys.idToken)) ||
-      readLegacyRawToken(storageMap.id_token)
-    );
     const hasRefreshCredential =
-      Boolean(localStorageRefreshToken) || (isUseCookie && hasSessionMarker);
+      isUseCookie || Boolean(localStorageRefreshToken);
     if (!hasRefreshCredential) {
       return undefined;
     }

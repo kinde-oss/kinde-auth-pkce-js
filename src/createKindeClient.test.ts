@@ -1039,21 +1039,16 @@ describe('getAccessToken refresh behaviour', () => {
     expect(mockRefreshToken).not.toHaveBeenCalled();
   });
 
-  it('uses cookie refresh from a session marker without reading document.cookie', async () => {
+  it('attempts cookie refresh when client-readable session storage is empty', async () => {
     setWindowLocation('', 'app.example.com');
-    Object.defineProperty(document, 'cookie', {
-      value: '',
-      writable: true,
-      configurable: true
-    });
     mockIsJWTActive.mockReturnValue(false);
-    const expiredJwt = makeJwt({exp: Math.floor(Date.now() / 1000) - 60});
     const freshJwt = makeJwt({exp: Math.floor(Date.now() / 1000) + 300});
-    store.setSessionItem(StorageKeys.accessToken, expiredJwt);
-    store.setSessionItem(
-      StorageKeys.idToken,
-      makeJwt({exp: Math.floor(Date.now() / 1000) + 3600})
-    );
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+    mockRefreshToken.mockClear();
     mockRefreshToken.mockResolvedValue({
       success: true,
       [StorageKeys.accessToken]: freshJwt,
@@ -1062,33 +1057,12 @@ describe('getAccessToken refresh behaviour', () => {
       })
     });
 
-    const client = await createKindeClient({
-      domain: 'https://auth.example.com',
-      redirect_uri: 'http://app.example.com/'
-    });
-
     const token = await client.getAccessToken();
 
     expect(mockRefreshToken).toHaveBeenCalledWith(
       expect.objectContaining({refreshType: RefreshType.cookie})
     );
     expect(token).toBe(freshJwt);
-  });
-
-  it('skips cookie refresh when no client-readable session marker exists', async () => {
-    setWindowLocation('', 'app.example.com');
-    mockIsJWTActive.mockReturnValue(false);
-
-    const client = await createKindeClient({
-      domain: 'https://auth.example.com',
-      redirect_uri: 'http://app.example.com/'
-    });
-    mockRefreshToken.mockClear();
-
-    const token = await client.getAccessToken();
-
-    expect(token).toBeUndefined();
-    expect(mockRefreshToken).not.toHaveBeenCalled();
   });
 });
 
