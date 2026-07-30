@@ -2,16 +2,17 @@
   "compilerOptions": {
     "outDir": "./dist",
     "declarationDir": "./dist/types",
+    "rootDir": "./src",
     "target": "esnext",
     "module": "esnext",
     "types": ["node", "jest"],
     "lib": ["dom", "dom.iterable", "esnext"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "declaration": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "rollup.config.ts", "rollup.types.config.ts"]
+  "exclude": ["node_modules"]
 }

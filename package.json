@@ -28,8 +28,8 @@
     }
   },
   "scripts": {
-    "rollup": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
-    "rollup:types": "rollup --config rollup.types.config.ts --configPlugin @rollup/plugin-typescript",
+    "rollup": "rollup --config rollup.config.ts --configPlugin \"@rollup/plugin-typescript={tsconfig:'./tsconfig.rollup.json'}\"",
+    "rollup:types": "rollup --config rollup.types.config.ts --configPlugin \"@rollup/plugin-typescript={tsconfig:'./tsconfig.rollup.json'}\"",
     "build": "genversion --es6 src/utils/version.ts && npm run rollup && npm run rollup:types",
     "test": "jest",
     "watch": "npm run rollup -- --watch",
@@ -55,6 +55,7 @@
   "homepage": "https://kinde.com",
   "license": "MIT",
   "devDependencies": {
+    "@eslint/js": "^10.0.0",
     "@rollup/plugin-babel": "^7.0.0",
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "^16.0.0",
@@ -62,13 +63,11 @@
     "@rollup/plugin-typescript": "^12.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
-    "@eslint/js": "^10.0.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-jest": "^29.15.5",
-    "globals": "^17.0.0",
-    "typescript-eslint": "^8.56.0",
     "genversion": "^3.1.1",
+    "globals": "^17.0.0",
     "husky": "^9.0.0",
     "jest": "^30.0.0",
     "lint-staged": "^17.0.0",
@@ -79,7 +78,8 @@
     "rollup-plugin-dts": "^6.0.2",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "typescript-eslint": "^8.56.0"
   },
   "keywords": [
     "Kinde",
@@ -101,7 +101,7 @@
   },
   "private": false,
   "dependencies": {
-    "@kinde/js-utils": "^0.31.0",
+    "@kinde/js-utils": "^0.32.0",
     "jwt-decode": "^4.0.0"
   }
 }

@@ -42,7 +42,6 @@ import {
   Scopes,
   setActiveStorage,
   StorageKeys,
-  isAuthenticated as isAuthenticatedFromJsUtils,
   getUserProfile as getUserProfileFromJsUtils,
   LocalStorage,
   checkAuth,
@@ -543,8 +542,7 @@ const createKindeClient = async (
     const value = store.getItem(key);
     if (typeof value === 'string') return value;
     const bundle = store.getItem(storageMap.token_bundle) as
-      | KindeStateTokenBundle
-      | undefined;
+      KindeStateTokenBundle | undefined;
     return key === storageMap.access_token
       ? bundle?.access_token
       : bundle?.id_token;
@@ -578,6 +576,21 @@ const createKindeClient = async (
 
     if (isStoredAccessTokenActive(tokenToReturn)) {
       return typeof tokenToReturn === 'string' ? tokenToReturn : undefined;
+    }
+
+    // Cookie refresh uses HttpOnly `_kbrte`, which JavaScript cannot inspect,
+    // so cookie mode must attempt refresh and let the server validate it.
+    // Other modes can skip refresh when no readable credential exists.
+    const localStorageRefreshToken = isUseLocalStorage
+      ? (localStorageAdapter.getSessionItem(
+          StorageKeys.refreshToken
+        ) as string) ||
+        (localStorage.getItem(storageMap.refresh_token) as string)
+      : (store.getItem(storageMap.refresh_token) as string);
+    const hasRefreshCredential =
+      isUseCookie || Boolean(localStorageRefreshToken);
+    if (!hasRefreshCredential) {
+      return undefined;
     }
 
     let result: RefreshTokenResult;
@@ -614,11 +627,10 @@ const createKindeClient = async (
   };
 
   const isAuthenticated = async () => {
-    return isAuthenticatedFromJsUtils({
-      useRefreshToken: true,
-      domain,
-      clientId: client_id
-    });
+    // Use the same cookie-vs-storage refresh path as getAccessToken.
+    // js-utils isAuthenticated always defaults refreshType to refreshToken,
+    // which fails on custom domains where the refresh token lives in _kbrte.
+    return Boolean(await getAccessToken());
   };
 
   const getPermissions = (): KindePermissions => {

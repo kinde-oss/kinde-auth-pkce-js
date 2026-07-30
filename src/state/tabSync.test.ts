@@ -319,8 +319,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
@@ -341,8 +340,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
@@ -376,8 +374,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
@@ -408,8 +405,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
@@ -430,8 +426,7 @@ describe('tabSync', () => {
     const visibilityHandler = (
       document.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
-      | (() => void)
-      | undefined;
+      (() => void) | undefined;
 
     visibilityHandler?.();
 
@@ -449,8 +444,7 @@ describe('tabSync', () => {
     const visibilityHandler = (
       document.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
-      | (() => void)
-      | undefined;
+      (() => void) | undefined;
     const focusHandler = (window.addEventListener as jest.Mock).mock.calls.find(
       ([event]) => event === 'focus'
     )?.[1] as (() => void) | undefined;
@@ -487,8 +481,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
@@ -522,8 +515,7 @@ describe('tabSync', () => {
     const storageHandler = (
       window.addEventListener as jest.Mock
     ).mock.calls.find(([event]) => event === 'storage')?.[1] as
-      | ((event: StorageEvent) => void)
-      | undefined;
+      ((event: StorageEvent) => void) | undefined;
 
     storageHandler?.({
       key: 'kinde_token_sync',
