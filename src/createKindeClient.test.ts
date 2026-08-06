@@ -194,6 +194,72 @@ describe('createKindeClient invitation flow', () => {
   });
 });
 
+describe('createKindeClient organization redirects', () => {
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    store.reset();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    jest.clearAllMocks();
+  });
+
+  const createClient = async () => {
+    setWindowLocation();
+    return createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+  };
+
+  const redirectedUrl = () =>
+    new URL((window as typeof globalThis & {location: Location}).location.href);
+
+  it('includes org_code in the auth URL when login is called with legacy org_code', async () => {
+    const client = await createClient();
+
+    await client.login({org_code: 'org_snake'});
+
+    expect(redirectedUrl().searchParams.get('org_code')).toBe('org_snake');
+  });
+
+  it('includes org_code in the auth URL when login is called with orgCode', async () => {
+    const client = await createClient();
+
+    await client.login({orgCode: 'org_camel'});
+
+    expect(redirectedUrl().searchParams.get('org_code')).toBe('org_camel');
+  });
+
+  it('includes org_code in the auth URL when register is called with legacy org_code', async () => {
+    const client = await createClient();
+
+    await client.register({org_code: 'org_snake'});
+
+    expect(redirectedUrl().searchParams.get('org_code')).toBe('org_snake');
+  });
+
+  it('legacy org_code takes precedence when both spellings are provided', async () => {
+    const client = await createClient();
+
+    await client.login({org_code: 'org_snake', orgCode: 'org_camel'});
+
+    expect(redirectedUrl().searchParams.get('org_code')).toBe('org_snake');
+  });
+});
+
 describe('refresh token storage routing (expired access → refresh recovery)', () => {
   const domain = 'https://example.kinde.com';
   const redirectUri = 'http://localhost:3000/';
