@@ -682,6 +682,7 @@ const createKindeClient = async (
       prompt,
       is_create_org,
       org_name = '',
+      org_code,
       invitation_code,
       authUrlParams = {},
       ...restRedirectOptions
@@ -724,6 +725,10 @@ const createKindeClient = async (
     if (invitation_code) {
       authProps.invitationCode = invitation_code;
       authProps.isInvitation = true;
+    }
+
+    if (org_code) {
+      authProps.orgCode = org_code;
     }
 
     if (is_create_org) {
