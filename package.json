@@ -1,6 +1,6 @@
 {
   "name": "@kinde-oss/kinde-auth-pkce-js",
-  "version": "4.5.0",
+  "version": "4.5.1",
   "description": "Kinde PKCE authentication for SPAs",
   "module": "dist/kinde-auth-pkce-js.esm.js",
   "main": "dist/kinde-auth-pkce-js.umd.min.js",
@@ -79,6 +79,7 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "tslib": "^2.6.2",
+    "typescript": "~6.0.0",
     "typescript-eslint": "^8.56.0"
   },
   "keywords": [
