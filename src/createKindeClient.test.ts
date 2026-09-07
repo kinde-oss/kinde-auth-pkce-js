@@ -768,17 +768,82 @@ describe('visibility sync hydration', () => {
       (() => void) | undefined;
 
     mockCheckAuth.mockClear();
+    mockRefreshToken.mockClear();
     visibilityHandler?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mockCheckAuth).toHaveBeenCalled();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
     expect(client.getUser()).toMatchObject({
       id: 'kp:user-1',
       email: 'u@x.com',
       given_name: 'Test',
       family_name: 'User'
     });
+  });
+
+  it('replacing the client leaves a single visibility/focus listener', async () => {
+    const first = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const firstVisibility = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      (() => void) | undefined;
+    const firstFocus = (window.addEventListener as jest.Mock).mock.calls.find(
+      ([event]) => event === 'focus'
+    )?.[1] as (() => void) | undefined;
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(document.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      firstVisibility
+    );
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      'focus',
+      firstFocus
+    );
+
+    const lastVisibility = [
+      ...(document.addEventListener as jest.Mock).mock.calls
+    ]
+      .reverse()
+      .find(([event]) => event === 'visibilitychange')?.[1] as
+      (() => void) | undefined;
+
+    expect(lastVisibility).toBeDefined();
+    expect(lastVisibility).not.toBe(firstVisibility);
+    first.destroy();
+  });
+
+  it('does not run checkAuth from visibility after destroy()', async () => {
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      (() => void) | undefined;
+
+    client.destroy();
+    mockCheckAuth.mockClear();
+    mockRefreshToken.mockClear();
+
+    visibilityHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockCheckAuth).not.toHaveBeenCalled();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
   });
 });
 

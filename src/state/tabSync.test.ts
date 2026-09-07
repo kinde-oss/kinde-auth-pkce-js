@@ -524,4 +524,115 @@ describe('tabSync', () => {
 
     await expect(waitPromise).resolves.toEqual(SAMPLE_TOKENS);
   });
+
+  test('second setupListeners unsubscribes the previous storage listener', async () => {
+    const tabSync = createTrackedTabSync({store});
+    const firstUpdated = jest.fn();
+    const secondUpdated = jest.fn();
+
+    tabSync.setupListeners({onTokensUpdated: firstUpdated});
+    const firstHandler = (window.addEventListener as jest.Mock).mock.calls.find(
+      ([event]) => event === 'storage'
+    )?.[1] as ((event: StorageEvent) => void) | undefined;
+
+    tabSync.setupListeners({onTokensUpdated: secondUpdated});
+
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      'storage',
+      firstHandler
+    );
+
+    const secondHandler = [...(window.addEventListener as jest.Mock).mock.calls]
+      .reverse()
+      .find(([event]) => event === 'storage')?.[1] as
+      ((event: StorageEvent) => void) | undefined;
+
+    secondHandler?.({
+      key: 'kinde_token_sync',
+      newValue: JSON.stringify({
+        type: 'tokens_updated',
+        tabId: 'other-tab',
+        tokens: SAMPLE_TOKENS
+      })
+    } as StorageEvent);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(secondUpdated).toHaveBeenCalled();
+    expect(firstUpdated).not.toHaveBeenCalled();
+  });
+
+  test('second setupVisibilitySync unsubscribes the previous visibility listeners', () => {
+    const tabSync = createTrackedTabSync({store});
+    const firstVisible = jest.fn();
+    const secondVisible = jest.fn();
+
+    tabSync.setupVisibilitySync(firstVisible);
+    const firstHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      (() => void) | undefined;
+
+    tabSync.setupVisibilitySync(secondVisible);
+
+    expect(document.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      firstHandler
+    );
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      'focus',
+      expect.any(Function)
+    );
+  });
+
+  test('dispose removes listeners and ignores later visibility callbacks', async () => {
+    const tabSync = createTrackedTabSync({store});
+    const onVisible = jest.fn();
+    const onTokensUpdated = jest.fn();
+
+    tabSync.setupListeners({onTokensUpdated});
+    tabSync.setupVisibilitySync(onVisible);
+
+    const visibilityHandler = (
+      document.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as
+      (() => void) | undefined;
+    const storageHandler = (
+      window.addEventListener as jest.Mock
+    ).mock.calls.find(([event]) => event === 'storage')?.[1] as
+      ((event: StorageEvent) => void) | undefined;
+    const focusHandler = (window.addEventListener as jest.Mock).mock.calls.find(
+      ([event]) => event === 'focus'
+    )?.[1] as (() => void) | undefined;
+
+    tabSync.dispose();
+
+    expect(document.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      visibilityHandler
+    );
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      'focus',
+      focusHandler
+    );
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      'storage',
+      storageHandler
+    );
+
+    visibilityHandler?.();
+    storageHandler?.({
+      key: 'kinde_token_sync',
+      newValue: JSON.stringify({
+        type: 'tokens_updated',
+        tabId: 'other-tab',
+        tokens: SAMPLE_TOKENS
+      })
+    } as StorageEvent);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onVisible).not.toHaveBeenCalled();
+    expect(onTokensUpdated).not.toHaveBeenCalled();
+  });
 });

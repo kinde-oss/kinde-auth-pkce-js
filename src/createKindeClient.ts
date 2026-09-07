@@ -117,6 +117,10 @@ const isSameOriginOpener = (): boolean => {
   }
 };
 
+let activeClientTeardown: (() => void) | null = null;
+
+const VISIBILITY_CHECK_COOLDOWN_MS = 1000;
+
 const createKindeClient = async (
   options: KindeClientOptions
 ): Promise<KindeClient> => {
@@ -177,6 +181,10 @@ const createKindeClient = async (
   }
 
   const client_id = clientId || 'spa@live';
+
+  activeClientTeardown?.();
+  activeClientTeardown = null;
+
   setActiveStorage(store);
 
   // If code is running on localhost, it's a development environment
@@ -204,6 +212,14 @@ const createKindeClient = async (
     useInsecureForRefreshToken: isUseLocalStorage
   });
 
+  let inFlightTabCoordination: Promise<RefreshTokenResult> | null = null;
+  // Blocks new refresh/checkAuth work once logout starts. In-flight work is
+  // awaited in logout() so any cookie Set-Cookie lands before /logout clears it.
+  let logoutInProgress = false;
+  let destroyed = false;
+  let sessionEpoch = 0;
+  let lastVisibilityCheckAt = 0;
+
   const runJsUtilsRefresh = async (
     refreshType: RefreshType = RefreshType.refreshToken
   ): Promise<RefreshTokenResult> => {
@@ -216,18 +232,14 @@ const createKindeClient = async (
         refreshType
       });
     } finally {
-      storageSettings.onRefreshHandler = savedHandler;
+      if (!destroyed && storageSettings.onRefreshHandler === undefined) {
+        storageSettings.onRefreshHandler = savedHandler;
+      }
     }
   };
 
-  let inFlightTabCoordination: Promise<RefreshTokenResult> | null = null;
-  // Blocks new refresh/checkAuth work once logout starts. In-flight work is
-  // awaited in logout() so any cookie Set-Cookie lands before /logout clears it.
-  let logoutInProgress = false;
-  let sessionEpoch = 0;
-
   const isSessionCurrent = (epochAtStart: number): boolean =>
-    !logoutInProgress && epochAtStart === sessionEpoch;
+    !destroyed && !logoutInProgress && epochAtStart === sessionEpoch;
 
   const runTabSyncCoordination = async (
     operation: () => Promise<RefreshTokenResult>,
@@ -302,7 +314,7 @@ const createKindeClient = async (
     operation: () => Promise<RefreshTokenResult>,
     inProgressErrorMessage: string
   ): Promise<RefreshTokenResult> => {
-    if (logoutInProgress) {
+    if (destroyed || logoutInProgress) {
       return Promise.resolve({
         success: false,
         error: 'Logout in progress'
@@ -336,8 +348,9 @@ const createKindeClient = async (
       'Token refresh in progress in another tab'
     );
 
-  storageSettings.onRefreshHandler = (refreshType) =>
+  const refreshHandler = (refreshType: RefreshType) =>
     runRefreshWithTabSync(refreshType);
+  storageSettings.onRefreshHandler = refreshHandler;
 
   const runCheckAuthWithTabSync = () =>
     withTabSyncCoordination(async () => {
@@ -346,7 +359,9 @@ const createKindeClient = async (
       try {
         return await checkAuth({domain, clientId: client_id});
       } finally {
-        storageSettings.onRefreshHandler = savedHandler;
+        if (!destroyed && storageSettings.onRefreshHandler === undefined) {
+          storageSettings.onRefreshHandler = savedHandler;
+        }
       }
     }, 'Authentication check in progress in another tab');
 
@@ -1150,9 +1165,22 @@ const createKindeClient = async (
     );
   };
 
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    sessionEpoch += 1;
+    tabSync.dispose();
+    if (storageSettings.onRefreshHandler === refreshHandler) {
+      storageSettings.onRefreshHandler = undefined;
+    }
+    if (activeClientTeardown === destroy) {
+      activeClientTeardown = null;
+    }
+  };
+
   tabSync.setupListeners({
     onTokensUpdated: () => {
-      if (logoutInProgress) {
+      if (destroyed || logoutInProgress) {
         void clearLocalAuthState();
         return;
       }
@@ -1160,11 +1188,15 @@ const createKindeClient = async (
     }
   });
   tabSync.setupVisibilitySync(() => {
-    if (logoutInProgress) return;
+    if (destroyed || logoutInProgress) return;
+    if (inFlightTabCoordination) return;
+    const now = Date.now();
+    if (now - lastVisibilityCheckAt < VISIBILITY_CHECK_COOLDOWN_MS) return;
+    lastVisibilityCheckAt = now;
     void runCheckAuthWithTabSync()
-      .then(async () => {
-        if (logoutInProgress) return;
-        if (await isAuthenticated()) {
+      .then(async (result) => {
+        if (destroyed || logoutInProgress) return;
+        if (isSuccessResult(result)) {
           await hydrateUserFromIdToken();
         } else {
           store.removeItem(storageMap.user);
@@ -1180,6 +1212,8 @@ const createKindeClient = async (
         });
       });
   });
+
+  activeClientTeardown = destroy;
 
   await init();
 
@@ -1203,7 +1237,8 @@ const createKindeClient = async (
     login,
     logout,
     portal,
-    register
+    register,
+    destroy
   };
 };
 
