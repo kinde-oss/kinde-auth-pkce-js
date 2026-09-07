@@ -600,6 +600,53 @@ describe('on_session_restore_callback semantics', () => {
     expect(client.getUser()).toBeFalsy();
   });
 
+  it('does not call getAccessToken refresh after a failed checkAuth on first load', async () => {
+    setWindowLocation('', 'app.example.com');
+    mockCheckAuth.mockResolvedValue({success: false});
+
+    const client = await createKindeClient({
+      domain: 'https://auth.example.com',
+      redirect_uri: 'http://app.example.com/'
+    });
+
+    expect(mockCheckAuth).toHaveBeenCalledTimes(1);
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+    expect(client.getUser()).toBeFalsy();
+  });
+
+  it('hydrates from a successful checkAuth on first load without getAccessToken refresh', async () => {
+    setWindowLocation();
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = makeJwt({exp: now + 3600, sub: 'kp:user-1'});
+    const idToken = makeJwt({
+      sub: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+    mockCheckAuth.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: accessToken,
+      [StorageKeys.idToken]: idToken,
+      [StorageKeys.refreshToken]: 'refresh-token'
+    });
+    mockGetUserProfile.mockResolvedValue(undefined);
+
+    const client = await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(mockCheckAuth).toHaveBeenCalledTimes(1);
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+    expect(client.getUser()).toMatchObject({
+      id: 'kp:user-1',
+      email: 'u@x.com',
+      given_name: 'Test',
+      family_name: 'User'
+    });
+  });
+
   it('does not fire session restore callback on redirect handling load', async () => {
     const state = b64url({kinde: {event: 'login'}});
     setWindowLocation(`?code=auth-code&state=${state}`);

@@ -119,8 +119,6 @@ const isSameOriginOpener = (): boolean => {
 
 let activeClientTeardown: (() => void) | null = null;
 
-const VISIBILITY_CHECK_COOLDOWN_MS = 1000;
-
 const createKindeClient = async (
   options: KindeClientOptions
 ): Promise<KindeClient> => {
@@ -218,7 +216,6 @@ const createKindeClient = async (
   let logoutInProgress = false;
   let destroyed = false;
   let sessionEpoch = 0;
-  let lastVisibilityCheckAt = 0;
 
   const runJsUtilsRefresh = async (
     refreshType: RefreshType = RefreshType.refreshToken
@@ -1050,12 +1047,14 @@ const createKindeClient = async (
   };
   const init = async () => {
     try {
+      let checkAuthResult: RefreshTokenResult = {success: false};
       try {
         migrateLegacyRefreshTokenKey();
         // Restores session and refreshes near-expiry tokens via js-utils checkAuth.
         // On custom domains, refresh uses the httpOnly _kbrte cookie (credentials: include);
         // the refresh_token field is intentionally omitted from the POST body.
-        await runCheckAuthWithTabSync();
+        // Do not follow this with isAuthenticated()/getAccessToken() — those refresh again.
+        checkAuthResult = await runCheckAuthWithTabSync();
       } catch (err) {
         console.warn('checkAuth failed:', err);
         on_error_callback?.({
@@ -1112,8 +1111,11 @@ const createKindeClient = async (
       }
 
       try {
-        const authed = await isAuthenticated();
-        if (authed) {
+        const storedAccess = await getStoredAccessToken();
+        const hasActiveSession =
+          isSuccessResult(checkAuthResult) ||
+          isStoredAccessTokenActive(storedAccess);
+        if (hasActiveSession) {
           await hydrateUserFromIdToken();
           const user = (await getUserProfile()) ?? getUser();
           if (user && on_session_restore_callback) {
@@ -1190,9 +1192,6 @@ const createKindeClient = async (
   tabSync.setupVisibilitySync(() => {
     if (destroyed || logoutInProgress) return;
     if (inFlightTabCoordination) return;
-    const now = Date.now();
-    if (now - lastVisibilityCheckAt < VISIBILITY_CHECK_COOLDOWN_MS) return;
-    lastVisibilityCheckAt = now;
     void runCheckAuthWithTabSync()
       .then(async (result) => {
         if (destroyed || logoutInProgress) return;
