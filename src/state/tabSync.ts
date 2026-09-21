@@ -96,6 +96,9 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
 
   let channel: BroadcastChannel | null = null;
   let lsListener: ((event: StorageEvent) => void) | null = null;
+  let unsubscribeListeners: (() => void) | null = null;
+  let unsubscribeVisibility: (() => void) | null = null;
+  let isDisposed = false;
   const pendingBroadcastWaits = new Set<{
     resolve: (tokens: TabSyncTokens | null) => void;
     reject: (error: Error) => void;
@@ -327,7 +330,7 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
       onSessionCleared?: () => void;
     }
   ): void => {
-    if (message.tabId === tabId) return;
+    if (isDisposed || message.tabId === tabId) return;
 
     if (message.type === 'tokens_updated') {
       void applyTokens(message.tokens)
@@ -352,6 +355,8 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     onTokensUpdated?: (tokens: TabSyncTokens) => void;
     onSessionCleared?: () => void;
   }): (() => void) => {
+    unsubscribeListeners?.();
+
     const ch = getChannel();
     const onChannelMessage = (event: MessageEvent<TabSyncMessage>) => {
       dispatchMessage(event.data, handlers);
@@ -375,24 +380,37 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
       window.addEventListener('storage', lsListener);
     }
 
-    return () => {
+    const unsubscribe = () => {
+      if (unsubscribeListeners !== unsubscribe) return;
       ch?.removeEventListener('message', onChannelMessage);
-      if (lsListener) {
+      if (
+        lsListener &&
+        typeof window !== 'undefined' &&
+        typeof window.removeEventListener === 'function'
+      ) {
         window.removeEventListener('storage', lsListener);
-        lsListener = null;
       }
+      lsListener = null;
+      unsubscribeListeners = null;
     };
+    unsubscribeListeners = unsubscribe;
+    return unsubscribe;
   };
 
   const setupVisibilitySync = (
     onVisible: () => void | Promise<void>
   ): (() => void) => {
-    if (!isBrowser()) return () => undefined;
+    unsubscribeVisibility?.();
+
+    if (!isBrowser()) {
+      unsubscribeVisibility = () => undefined;
+      return unsubscribeVisibility;
+    }
 
     let pendingCheck: ReturnType<typeof setTimeout> | undefined;
 
     const scheduleCheck = () => {
-      if (pendingCheck !== undefined) return;
+      if (isDisposed || pendingCheck !== undefined) return;
       pendingCheck = setTimeout(() => {
         pendingCheck = undefined;
         void onVisible();
@@ -406,17 +424,29 @@ export const createTabSync = (options: TabSyncOptions): TabSync => {
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('focus', scheduleCheck);
 
-    return () => {
+    const unsubscribe = () => {
+      if (unsubscribeVisibility !== unsubscribe) return;
       if (pendingCheck !== undefined) {
         clearTimeout(pendingCheck);
         pendingCheck = undefined;
       }
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('focus', scheduleCheck);
+      if (typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+      if (typeof window.removeEventListener === 'function') {
+        window.removeEventListener('focus', scheduleCheck);
+      }
+      unsubscribeVisibility = null;
     };
+    unsubscribeVisibility = unsubscribe;
+    return unsubscribe;
   };
 
   const dispose = (): void => {
+    if (isDisposed) return;
+    isDisposed = true;
+    unsubscribeListeners?.();
+    unsubscribeVisibility?.();
     channel?.close();
     channel = null;
     pendingBroadcastWaits.forEach(({reject, clearTimer}) => {

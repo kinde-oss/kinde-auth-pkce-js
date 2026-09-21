@@ -153,4 +153,9 @@ export type KindeClient = {
   getPermission: (key: string) => KindePermission;
   getOrganization: () => KindeOrganization;
   getUserOrganizations: () => KindeOrganizations;
+  /**
+   * Tears down tab-sync and visibility listeners. A subsequent
+   * `createKindeClient()` call also replaces any previous client.
+   */
+  destroy: () => void;
 };
