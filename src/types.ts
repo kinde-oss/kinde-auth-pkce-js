@@ -1,4 +1,12 @@
-import {GeneratePortalUrlParams, type LoginMethodParams} from '@kinde/js-utils';
+import {
+  GeneratePortalUrlParams,
+  type AcrValue,
+  type AuthenticationContext,
+  type AuthenticationContextRequirement,
+  type LoginMethodParams,
+  type LoginRequiredError,
+  type UnmetAuthenticationRequirementsError
+} from '@kinde/js-utils';
 
 export type KindeUser = {
   given_name: string | undefined;
@@ -22,6 +30,11 @@ export type ErrorProps = {
   errorDescription: string;
   state: string;
   appState: Record<string, unknown>;
+  /**
+   * Set for `unmet_authentication_requirements` and `login_required`.
+   * These are delivered on `on_error_callback` so `createKindeClient()` still resolves.
+   */
+  oauthError?: UnmetAuthenticationRequirementsError | LoginRequiredError;
 };
 
 export type KindeClientOptions = {
@@ -128,6 +141,11 @@ export type RedirectOptions = OrgOptions &
     is_create_org?: boolean;
   };
 
+/** Interactive step-up. `acr` maps to `acr_values` and takes precedence over `acrValues`. */
+export type KindeStepUpOptions = RedirectOptions & {
+  acr?: AcrValue;
+};
+
 export type KindeClient = {
   getAccessToken: () => Promise<string | undefined>;
   getIdToken: () => Promise<string | undefined>;
@@ -136,6 +154,19 @@ export type KindeClient = {
   getUser: () => KindeUser;
   getUserProfile: () => Promise<KindeUser | undefined>;
   login: (options?: RedirectOptions) => Promise<void>;
+  /**
+   * Ask Kinde for a stronger or more recent authentication.
+   * Reuses the login redirect. Never sends `prompt=none`.
+   */
+  stepUp: (options?: KindeStepUpOptions) => Promise<void>;
+  /** `acr`, `amr`, and `auth_time` from the current session. `auth_time` is read from the ID token. */
+  getAuthenticationContext: () => Promise<AuthenticationContext | null>;
+  /** Whether the current session meets `acr` and `maxAge`. `phr` meets `mfa`. */
+  hasAuthenticationContext: (
+    requirement: AuthenticationContextRequirement
+  ) => Promise<boolean>;
+  /** Whether this business domain advertises `acr_values_supported`. */
+  isStepUpSupported: () => Promise<boolean>;
   logout: (options?: string | LogoutOptions) => Promise<void>;
   portal: (options: Omit<GeneratePortalUrlParams, 'domain'>) => Promise<void>;
   register: (options?: RedirectOptions) => Promise<void>;
