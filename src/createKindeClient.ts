@@ -28,6 +28,7 @@ import type {
   KindeUser,
   OrgOptions,
   RedirectOptions,
+  KindeStepUpOptions,
   ErrorProps,
   LogoutOptions,
   GetTokenOptions,
@@ -57,7 +58,13 @@ import {
   UserProfile,
   RefreshTokenResult,
   isCustomDomain,
-  base64UrlDecode
+  base64UrlDecode,
+  stepUp as buildStepUpUrl,
+  readCallbackAuthenticationError,
+  getAuthenticationContext as readSessionAuthenticationContext,
+  hasAuthenticationContext as sessionHasAuthenticationContext,
+  isStepUpSupported as domainSupportsStepUp,
+  type AuthenticationContextRequirement
 } from './kindeUtils';
 import {getRedirectUrl} from './utils/getRedirectUrl';
 import {hasCookie} from './utils/hasCookie/hasCookie';
@@ -677,16 +684,35 @@ const createKindeClient = async (
     return url.toString();
   };
 
+  const isUnsetAuthUrlValue = (value: unknown): boolean =>
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    (typeof value === 'number' && Number.isNaN(value));
+
   const normalizeAuthUrlParams = (
     authUrlParams: NonNullable<AuthOptions['authUrlParams']>
   ) => {
     return Object.fromEntries(
-      Object.entries(authUrlParams).map(([key, value]) => [key, String(value)])
+      Object.entries(authUrlParams)
+        .filter(([, value]) => !isUnsetAuthUrlValue(value))
+        .map(([key, value]) => [key, String(value)])
     );
   };
 
   const appStateSessionKey = (oauthState: string) =>
     `${SESSION_PREFIX}-app-state-${oauthState}`;
+
+  const readStoredAppState = (oauthState: string): Record<string, unknown> => {
+    if (!oauthState) return {};
+    try {
+      const raw = sessionStorage.getItem(appStateSessionKey(oauthState));
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  };
 
   const redirectToKinde = async (options: RedirectOptions) => {
     const {
@@ -750,31 +776,25 @@ const createKindeClient = async (
 
     const authUrl = await generateAuthUrl(config.domain, routeType, authProps);
 
-    // mergeAuthUrlParams only — do not replace the query string with authProps keys:
-    // generateAuthUrl already maps redirectURL → redirect_uri, clientId → client_id, etc.
-    const reservedParams = new Set([
-      'state',
-      'client_id',
-      'redirect_uri',
-      'response_type',
-      'scope',
-      'code_challenge',
-      'code_challenge_method'
-    ]);
-    for (const [k, v] of Object.entries(
-      normalizeAuthUrlParams(authUrlParams)
-    )) {
-      if (reservedParams.has(k)) continue;
-      authUrl.url.searchParams.set(k, String(v));
-    }
+    // Extra query params only. generateAuthUrl already maps redirectURL → redirect_uri,
+    // clientId → client_id, acrValues → acr_values, and maxAge → max_age.
+    mergeAuthUrlParams(authUrl, authUrlParams);
 
+    rememberAppStateAndNavigate(authUrl, app_state, authProps.state ?? '');
+  };
+
+  const rememberAppStateAndNavigate = (
+    authUrl: {url: URL; state: string},
+    appState: Record<string, unknown>,
+    fallbackState: string
+  ) => {
     const oauthState =
       authUrl.url.searchParams.get('state') || authUrl.state || '';
     if (oauthState) {
       try {
         sessionStorage.setItem(
           appStateSessionKey(oauthState),
-          JSON.stringify(app_state)
+          JSON.stringify(appState)
         );
       } catch {
         // quota / private mode — callback will not receive app_state
@@ -791,12 +811,35 @@ const createKindeClient = async (
         on_error_callback({
           error: 'Error with navigate to Kinde',
           errorDescription: (error as Error).message,
-          state: authProps.state,
+          state: fallbackState,
           appState: {
             kindeOriginUrl: window.location.href
           }
         } as ErrorProps);
       }
+    }
+  };
+
+  const mergeAuthUrlParams = (
+    authUrl: {url: URL},
+    authUrlParams: NonNullable<AuthOptions['authUrlParams']>,
+    extraReserved: string[] = []
+  ) => {
+    const reservedParams = new Set([
+      'state',
+      'client_id',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'code_challenge',
+      'code_challenge_method',
+      ...extraReserved
+    ]);
+    for (const [k, v] of Object.entries(
+      normalizeAuthUrlParams(authUrlParams)
+    )) {
+      if (reservedParams.has(k)) continue;
+      authUrl.url.searchParams.set(k, v);
     }
   };
 
@@ -889,6 +932,72 @@ const createKindeClient = async (
       ...options
     });
   };
+
+  const stepUp = async (options: KindeStepUpOptions = {}) => {
+    const {
+      app_state = {},
+      prompt,
+      is_create_org,
+      org_name = '',
+      org_code,
+      invitation_code,
+      authUrlParams = {},
+      acr,
+      ...restRedirectOptions
+    } = options;
+
+    const promptFromParams = authUrlParams.prompt;
+    if (
+      prompt === PromptTypes.none ||
+      prompt === 'none' ||
+      promptFromParams === PromptTypes.none ||
+      promptFromParams === 'none'
+    ) {
+      throw new Error(
+        'stepUp cannot send prompt=none. Kinde cannot collect a factor without a screen.'
+      );
+    }
+
+    if (!app_state.kindeOriginUrl) {
+      app_state.kindeOriginUrl = getKindeOriginUrl();
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const optionsState = params.get('state') || '';
+    const promptType = PromptTypes[prompt as keyof typeof PromptTypes];
+
+    const authUrl = await buildStepUpUrl(domain, {
+      audience,
+      clientId: client_id,
+      scope: config.requested_scopes.split(' ') as Scopes[],
+      supportsReauth: true,
+      ...restRedirectOptions,
+      ...(promptType ? {prompt: promptType} : {}),
+      acr,
+      state: base64UrlEncode(
+        JSON.stringify({
+          kinde: {event: AuthEvent.login, state: optionsState}
+        })
+      ),
+      redirectURL: getRedirectUrl(redirect_uri),
+      parameters: authUrlParams,
+      ...(invitation_code ? {invitationCode: invitation_code} : {}),
+      ...(org_code ? {orgCode: org_code} : {}),
+      ...(is_create_org ? {isCreateOrg: true, orgName: org_name} : {})
+    });
+
+    // prompt is owned by stepUp so a maxAge fallback to prompt=login is kept.
+    mergeAuthUrlParams(authUrl, authUrlParams, ['prompt']);
+    rememberAppStateAndNavigate(authUrl, app_state, authUrl.state);
+  };
+
+  const getAuthenticationContext = () => readSessionAuthenticationContext();
+
+  const hasAuthenticationContext = (
+    requirement: AuthenticationContextRequirement
+  ) => sessionHasAuthenticationContext(requirement);
+
+  const isStepUpSupported = () => domainSupportsStepUp(domain);
 
   const createOrg = async (
     options?: (OrgOptions | LoginMethodParams) & {
@@ -1075,6 +1184,29 @@ const createKindeClient = async (
           }
           return;
         }
+
+        const callbackError = await readCallbackAuthenticationError(params);
+        if (callbackError.outcome === 'error') {
+          const oauthError = callbackError.error;
+          on_error_callback?.({
+            error: oauthError.error,
+            errorDescription: oauthError.errorDescription,
+            state: oauthError.state,
+            appState: readStoredAppState(oauthError.state),
+            oauthError
+          });
+          return;
+        }
+        if (callbackError.outcome === 'reject') {
+          on_error_callback?.({
+            error: 'ERR_STATE',
+            errorDescription: callbackError.message,
+            state: params.get('state') || '',
+            appState: {}
+          });
+          return;
+        }
+
         on_error_callback?.({
           error: 'ERR_CHECK_AUTH',
           errorDescription: String(errorCode),
@@ -1234,6 +1366,10 @@ const createKindeClient = async (
     getUserProfile,
     isAuthenticated,
     login,
+    stepUp,
+    getAuthenticationContext,
+    hasAuthenticationContext,
+    isStepUpSupported,
     logout,
     portal,
     register,
