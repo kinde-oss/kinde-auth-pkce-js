@@ -991,11 +991,12 @@ const createKindeClient = async (
     rememberAppStateAndNavigate(authUrl, app_state, authUrl.state);
   };
 
-  const getAuthenticationContext = () => readSessionAuthenticationContext();
+  const getAuthenticationContext = () =>
+    readSessionAuthenticationContext(domain);
 
   const hasAuthenticationContext = (
     requirement: AuthenticationContextRequirement
-  ) => sessionHasAuthenticationContext(requirement);
+  ) => sessionHasAuthenticationContext(requirement, domain);
 
   const isStepUpSupported = () => domainSupportsStepUp(domain);
 

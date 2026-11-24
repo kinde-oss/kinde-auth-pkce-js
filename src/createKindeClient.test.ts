@@ -1949,11 +1949,14 @@ describe('step-up authentication', () => {
   });
 
   it('reads authentication context from the ID token', async () => {
-    const client = await createClient();
+    const domain = 'https://auth-context.kinde.com';
+    global.fetch = discovery(true);
+    const client = await createClient(domain);
     setActiveStorageActual(store);
     store.setSessionItem(
       StorageKeys.idToken,
       makeJwt({
+        iss: domain,
         acr: 'phr',
         amr: ['pwd', 'otp'],
         auth_time: 1_700_000_000
@@ -1962,6 +1965,7 @@ describe('step-up authentication', () => {
     store.setSessionItem(
       StorageKeys.accessToken,
       makeJwt({
+        iss: domain,
         acr: 'mfa',
         amr: ['pwd'],
         auth_time: 1_600_000_000
@@ -1982,11 +1986,13 @@ describe('step-up authentication', () => {
   });
 
   it('fails a maxAge check when auth_time is missing', async () => {
-    const client = await createClient();
+    const domain = 'https://auth-context-missing.kinde.com';
+    global.fetch = discovery(true);
+    const client = await createClient(domain);
     setActiveStorageActual(store);
     store.setSessionItem(
       StorageKeys.idToken,
-      makeJwt({acr: 'mfa', amr: ['pwd']})
+      makeJwt({iss: domain, acr: 'mfa', amr: ['pwd']})
     );
 
     await expect(
