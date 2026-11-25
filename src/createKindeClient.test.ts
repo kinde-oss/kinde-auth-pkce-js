@@ -1856,6 +1856,48 @@ describe('step-up authentication', () => {
     expect(params.has('max_age')).toBe(false);
   });
 
+  it('does not let authUrlParams override step-up acr_values or max_age', async () => {
+    global.fetch = discovery(true);
+    const client = await createClient('https://step-up-reserved.kinde.com');
+
+    await client.stepUp({
+      acr: 'mfa',
+      maxAge: 300,
+      authUrlParams: {
+        acr_values: 'phr',
+        max_age: '0',
+        connection_id: 'conn_1'
+      }
+    });
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('acr_values')).toBe('mfa');
+    expect(params.get('max_age')).toBe('300');
+    expect(params.get('connection_id')).toBe('conn_1');
+  });
+
+  it('does not restore acr_values or max_age after an unsupported-domain fallback', async () => {
+    global.fetch = discovery(false);
+    const client = await createClient(
+      'https://step-up-fallback-params.kinde.com'
+    );
+
+    await client.stepUp({
+      maxAge: 300,
+      authUrlParams: {
+        acr_values: 'mfa',
+        max_age: '0',
+        connection_id: 'conn_1'
+      }
+    });
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('prompt')).toBe('login');
+    expect(params.has('acr_values')).toBe(false);
+    expect(params.has('max_age')).toBe(false);
+    expect(params.get('connection_id')).toBe('conn_1');
+  });
+
   it('reports unmet_authentication_requirements without starting login', async () => {
     const state = 'stored-oauth-state';
     setWindowLocation(

@@ -986,8 +986,13 @@ const createKindeClient = async (
       ...(is_create_org ? {isCreateOrg: true, orgName: org_name} : {})
     });
 
-    // prompt is owned by stepUp so a maxAge fallback to prompt=login is kept.
-    mergeAuthUrlParams(authUrl, authUrlParams, ['prompt']);
+    // prompt, acr_values, and max_age are owned by stepUp, including when an
+    // unsupported domain drops acr_values and max_age and sends prompt=login.
+    mergeAuthUrlParams(authUrl, authUrlParams, [
+      'prompt',
+      'acr_values',
+      'max_age'
+    ]);
     rememberAppStateAndNavigate(authUrl, app_state, authUrl.state);
   };
 
