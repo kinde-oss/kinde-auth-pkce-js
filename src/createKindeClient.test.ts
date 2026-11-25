@@ -1856,6 +1856,52 @@ describe('step-up authentication', () => {
     expect(params.has('max_age')).toBe(false);
   });
 
+  it('resolves stepUp only after popup navigation finishes', async () => {
+    global.fetch = discovery(true);
+    const client = await createClient('https://step-up-popup.kinde.com');
+    let finishNavigation: () => void = () => {};
+    mockNavigateToKinde.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishNavigation = resolve;
+        })
+    );
+
+    let settled = false;
+    const pending = client.stepUp({acr: 'mfa', maxAge: 300}).then(() => {
+      settled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockNavigateToKinde).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    finishNavigation();
+    await pending;
+    expect(settled).toBe(true);
+  });
+
+  it('reports step-up navigation failures without rejecting', async () => {
+    global.fetch = discovery(true);
+    const onError = jest.fn();
+    const client = await createKindeClient({
+      domain: 'https://step-up-nav-error.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_error_callback: onError
+    });
+    mockNavigateToKinde.mockImplementationOnce(() =>
+      Promise.reject(new Error('Popup was blocked by the browser'))
+    );
+
+    await expect(client.stepUp({acr: 'mfa'})).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'Error with navigate to Kinde',
+        errorDescription: 'Popup was blocked by the browser'
+      })
+    );
+  });
+
   it('does not let authUrlParams override step-up acr_values or max_age', async () => {
     global.fetch = discovery(true);
     const client = await createClient('https://step-up-reserved.kinde.com');

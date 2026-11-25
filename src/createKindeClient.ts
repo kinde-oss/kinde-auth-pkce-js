@@ -783,7 +783,7 @@ const createKindeClient = async (
     rememberAppStateAndNavigate(authUrl, app_state, authProps.state ?? '');
   };
 
-  const rememberAppStateAndNavigate = (
+  const rememberAppStateAndNavigate = async (
     authUrl: {url: URL; state: string},
     appState: Record<string, unknown>,
     fallbackState: string
@@ -802,7 +802,7 @@ const createKindeClient = async (
     }
 
     try {
-      navigateToKinde({
+      return await navigateToKinde({
         url: authUrl.url.toString(),
         handleResult: processAuthResult
       });
@@ -993,7 +993,7 @@ const createKindeClient = async (
       'acr_values',
       'max_age'
     ]);
-    rememberAppStateAndNavigate(authUrl, app_state, authUrl.state);
+    await rememberAppStateAndNavigate(authUrl, app_state, authUrl.state);
   };
 
   const getAuthenticationContext = () =>
