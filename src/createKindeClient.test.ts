@@ -43,6 +43,16 @@ import {
   RefreshType,
   navigateToKinde
 } from './kindeUtils';
+import {
+  clearActiveStorage,
+  clearInsecureStorage,
+  getInsecureStorage,
+  LocalStorage,
+  LoginRequiredError,
+  setActiveStorage as setActiveStorageActual,
+  setInsecureStorage as setInsecureStorageActual,
+  UnmetAuthenticationRequirementsError
+} from '@kinde/js-utils';
 import {store} from './state/store';
 import {SESSION_PREFIX, storageMap} from './constants';
 import {isJWTActive, isTokenValid} from './utils/index';
@@ -1683,5 +1693,408 @@ describe('createKindeClient setStore audience validation', () => {
     });
 
     await expect(client.getToken()).resolves.toBe(freshAccess);
+  });
+});
+
+describe('step-up authentication', () => {
+  const memoryLocalStorage = () => {
+    const data = new Map<string, string>();
+    return {
+      getItem: jest.fn((key: string) => data.get(key) ?? null),
+      setItem: jest.fn((key: string, value: string) => {
+        data.set(key, String(value));
+      }),
+      removeItem: jest.fn((key: string) => {
+        data.delete(key);
+      }),
+      clear: jest.fn(() => {
+        data.clear();
+      })
+    };
+  };
+
+  const discovery = (supported: boolean) =>
+    jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () =>
+        supported ? {acr_values_supported: ['mfa', 'phr']} : {}
+    });
+
+  beforeEach(() => {
+    mockSetActiveStorage.mockReset();
+    mockCheckAuth.mockClear();
+    mockExchangeAuthCode.mockClear();
+    mockNavigateToKinde.mockClear();
+    store.reset();
+    clearActiveStorage();
+    clearInsecureStorage();
+    Object.defineProperty(global, 'sessionStorage', {
+      value: createStorageMock(),
+      writable: true,
+      configurable: true
+    });
+    Object.defineProperty(global, 'localStorage', {
+      value: memoryLocalStorage(),
+      writable: true,
+      configurable: true
+    });
+    global.fetch = jest.fn();
+    setWindowLocation();
+  });
+
+  afterEach(() => {
+    storageSettings.onRefreshHandler = undefined;
+    clearActiveStorage();
+    clearInsecureStorage();
+    jest.clearAllMocks();
+  });
+
+  const createClient = async (domain = 'https://example.kinde.com') => {
+    setWindowLocation();
+    return createKindeClient({
+      domain,
+      redirect_uri: 'http://localhost:3000/'
+    });
+  };
+
+  const redirectedUrl = () =>
+    new URL((window as typeof globalThis & {location: Location}).location.href);
+
+  const seedOauthState = (state: string) => {
+    setInsecureStorageActual(new LocalStorage());
+    getInsecureStorage()?.setSessionItem(StorageKeys.state, state);
+  };
+
+  it('sends acr_values and max_age on login and register', async () => {
+    const client = await createClient();
+
+    await client.login({acrValues: 'mfa', maxAge: 0});
+    expect(redirectedUrl().searchParams.get('acr_values')).toBe('mfa');
+    expect(redirectedUrl().searchParams.get('max_age')).toBe('0');
+
+    await client.register({acrValues: ['mfa', 'phr'], maxAge: 300});
+    expect(redirectedUrl().searchParams.get('acr_values')).toBe('mfa phr');
+    expect(redirectedUrl().searchParams.get('max_age')).toBe('300');
+  });
+
+  it('omits acr_values and max_age when they are unset', async () => {
+    const client = await createClient();
+
+    await client.login({});
+
+    expect(redirectedUrl().searchParams.has('acr_values')).toBe(false);
+    expect(redirectedUrl().searchParams.has('max_age')).toBe(false);
+  });
+
+  it('does not send an unset max_age from authUrlParams', async () => {
+    const client = await createClient();
+
+    await client.login({
+      authUrlParams: {
+        max_age: undefined,
+        acr_values: null,
+        connection_id: 'conn_1'
+      }
+    });
+
+    expect(redirectedUrl().searchParams.has('max_age')).toBe(false);
+    expect(redirectedUrl().searchParams.has('acr_values')).toBe(false);
+    expect(redirectedUrl().searchParams.get('connection_id')).toBe('conn_1');
+  });
+
+  it('rejects an invalid maxAge before navigating', async () => {
+    const client = await createClient();
+
+    await expect(client.login({maxAge: -1})).rejects.toThrow(/maxAge/);
+    await expect(client.login({maxAge: 1.5})).rejects.toThrow(/maxAge/);
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+  });
+
+  it('builds an interactive step-up URL and never sends prompt=none', async () => {
+    global.fetch = discovery(true);
+    const client = await createClient('https://step-up-on.kinde.com');
+
+    await client.stepUp({acr: 'mfa', maxAge: 300});
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('acr_values')).toBe('mfa');
+    expect(params.get('max_age')).toBe('300');
+    expect(params.get('prompt')).not.toBe('none');
+    expect(mockNavigateToKinde).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when stepUp is asked for prompt=none and does not navigate', async () => {
+    const client = await createClient('https://step-up-prompt.kinde.com');
+
+    await expect(client.stepUp({acr: 'mfa', prompt: 'none'})).rejects.toThrow(
+      /prompt=none/
+    );
+    await expect(
+      client.stepUp({maxAge: 0, authUrlParams: {prompt: 'none'}})
+    ).rejects.toThrow(/prompt=none/);
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('throws when step-up acr is not supported by discovery', async () => {
+    global.fetch = discovery(false);
+    const client = await createClient('https://step-up-off.kinde.com');
+
+    await expect(client.stepUp({acr: 'mfa'})).rejects.toThrow(/not supported/);
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+  });
+
+  it('falls back to prompt=login when only maxAge is set and step-up is unsupported', async () => {
+    global.fetch = discovery(false);
+    const client = await createClient('https://step-up-max-age.kinde.com');
+
+    await client.stepUp({maxAge: 300});
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('prompt')).toBe('login');
+    expect(params.has('acr_values')).toBe(false);
+    expect(params.has('max_age')).toBe(false);
+  });
+
+  it('resolves stepUp only after popup navigation finishes', async () => {
+    global.fetch = discovery(true);
+    const client = await createClient('https://step-up-popup.kinde.com');
+    let finishNavigation: () => void = () => {};
+    mockNavigateToKinde.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishNavigation = resolve;
+        })
+    );
+
+    let settled = false;
+    const pending = client.stepUp({acr: 'mfa', maxAge: 300}).then(() => {
+      settled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockNavigateToKinde).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    finishNavigation();
+    await pending;
+    expect(settled).toBe(true);
+  });
+
+  it('reports step-up navigation failures without rejecting', async () => {
+    global.fetch = discovery(true);
+    const onError = jest.fn();
+    const client = await createKindeClient({
+      domain: 'https://step-up-nav-error.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_error_callback: onError
+    });
+    mockNavigateToKinde.mockImplementationOnce(() =>
+      Promise.reject(new Error('Popup was blocked by the browser'))
+    );
+
+    await expect(client.stepUp({acr: 'mfa'})).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'Error with navigate to Kinde',
+        errorDescription: 'Popup was blocked by the browser'
+      })
+    );
+  });
+
+  it('does not let authUrlParams override step-up acr_values or max_age', async () => {
+    global.fetch = discovery(true);
+    const client = await createClient('https://step-up-reserved.kinde.com');
+
+    await client.stepUp({
+      acr: 'mfa',
+      maxAge: 300,
+      authUrlParams: {
+        acr_values: 'phr',
+        max_age: '0',
+        connection_id: 'conn_1'
+      }
+    });
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('acr_values')).toBe('mfa');
+    expect(params.get('max_age')).toBe('300');
+    expect(params.get('connection_id')).toBe('conn_1');
+  });
+
+  it('does not restore acr_values or max_age after an unsupported-domain fallback', async () => {
+    global.fetch = discovery(false);
+    const client = await createClient(
+      'https://step-up-fallback-params.kinde.com'
+    );
+
+    await client.stepUp({
+      maxAge: 300,
+      authUrlParams: {
+        acr_values: 'mfa',
+        max_age: '0',
+        connection_id: 'conn_1'
+      }
+    });
+
+    const params = redirectedUrl().searchParams;
+    expect(params.get('prompt')).toBe('login');
+    expect(params.has('acr_values')).toBe(false);
+    expect(params.has('max_age')).toBe(false);
+    expect(params.get('connection_id')).toBe('conn_1');
+  });
+
+  it('reports unmet_authentication_requirements without starting login', async () => {
+    const state = 'stored-oauth-state';
+    setWindowLocation(
+      `?error=unmet_authentication_requirements&error_description=Add%20a%20passkey%20to%20continue&state=${state}`
+    );
+    seedOauthState(state);
+    const onError = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_error_callback: onError
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'unmet_authentication_requirements',
+        errorDescription: 'Add a passkey to continue',
+        state,
+        oauthError: expect.any(UnmetAuthenticationRequirementsError)
+      })
+    );
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+  });
+
+  it('reports login_required as LoginRequiredError', async () => {
+    const state = 'stored-login-required';
+    setWindowLocation(
+      `?error=login_required&error_description=Login%20required&state=${state}`
+    );
+    seedOauthState(state);
+    const onError = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_error_callback: onError
+    });
+
+    const props = onError.mock.calls[0][0];
+    expect(props.error).toBe('login_required');
+    expect(props.errorDescription).toBe('Login required');
+    expect(props.state).toBe(state);
+    expect(props.oauthError).toBeInstanceOf(LoginRequiredError);
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+  });
+
+  it('does not report a step-up error when state does not match', async () => {
+    setWindowLocation(
+      '?error=unmet_authentication_requirements&error_description=nope&state=from-callback'
+    );
+    seedOauthState('stored-state');
+    const onError = jest.fn();
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/',
+      on_error_callback: onError
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].error).toBe('ERR_STATE');
+    expect(onError.mock.calls[0][0].error).not.toBe(
+      'unmet_authentication_requirements'
+    );
+    expect(mockNavigateToKinde).not.toHaveBeenCalled();
+  });
+
+  it('replaces access, id, and refresh tokens after a successful callback', async () => {
+    const state = b64url({kinde: {event: 'login'}});
+    setWindowLocation(`?code=the-code&state=${state}`);
+    store.setSessionItem(StorageKeys.accessToken, 'old-access');
+    store.setSessionItem(StorageKeys.idToken, 'old-id');
+    store.setSessionItem(StorageKeys.refreshToken, 'old-refresh');
+    mockExchangeAuthCode.mockResolvedValue({
+      success: true,
+      [StorageKeys.accessToken]: 'new-access',
+      [StorageKeys.idToken]: 'new-id',
+      [StorageKeys.refreshToken]: 'new-refresh'
+    });
+
+    await createKindeClient({
+      domain: 'https://example.kinde.com',
+      redirect_uri: 'http://localhost:3000/'
+    });
+
+    expect(store.getSessionItem(StorageKeys.accessToken)).toBe('new-access');
+    expect(store.getSessionItem(StorageKeys.idToken)).toBe('new-id');
+    expect(store.getSessionItem(StorageKeys.refreshToken)).toBe('new-refresh');
+  });
+
+  it('reads authentication context from the ID token', async () => {
+    const domain = 'https://auth-context.kinde.com';
+    global.fetch = discovery(true);
+    const client = await createClient(domain);
+    setActiveStorageActual(store);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({
+        iss: domain,
+        acr: 'phr',
+        amr: ['pwd', 'otp'],
+        auth_time: 1_700_000_000
+      })
+    );
+    store.setSessionItem(
+      StorageKeys.accessToken,
+      makeJwt({
+        iss: domain,
+        acr: 'mfa',
+        amr: ['pwd'],
+        auth_time: 1_600_000_000
+      })
+    );
+
+    await expect(client.getAuthenticationContext()).resolves.toEqual({
+      acr: 'phr',
+      amr: ['pwd', 'otp'],
+      authTime: 1_700_000_000
+    });
+    await expect(client.hasAuthenticationContext({acr: 'mfa'})).resolves.toBe(
+      true
+    );
+    await expect(
+      client.hasAuthenticationContext({acr: 'phr', maxAge: 300})
+    ).resolves.toBe(false);
+  });
+
+  it('fails a maxAge check when auth_time is missing', async () => {
+    const domain = 'https://auth-context-missing.kinde.com';
+    global.fetch = discovery(true);
+    const client = await createClient(domain);
+    setActiveStorageActual(store);
+    store.setSessionItem(
+      StorageKeys.idToken,
+      makeJwt({iss: domain, acr: 'mfa', amr: ['pwd']})
+    );
+
+    await expect(
+      client.hasAuthenticationContext({acr: 'mfa', maxAge: 300})
+    ).resolves.toBe(false);
+  });
+
+  it('reads step-up support from discovery', async () => {
+    global.fetch = discovery(true);
+    const supported = await createClient('https://discovery-yes.kinde.com');
+    await expect(supported.isStepUpSupported()).resolves.toBe(true);
+
+    global.fetch = discovery(false);
+    const unsupported = await createClient('https://discovery-no.kinde.com');
+    await expect(unsupported.isStepUpSupported()).resolves.toBe(false);
   });
 });
